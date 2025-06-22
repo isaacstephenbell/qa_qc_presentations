@@ -17,6 +17,8 @@ export async function POST(request: Request): Promise<NextResponse> {
           tokenPayload: JSON.stringify({
             // Can pass any custom metadata here
           }),
+          // Add a random suffix to prevent filename conflicts
+          addRandomSuffix: true,
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
