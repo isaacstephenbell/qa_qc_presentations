@@ -28,27 +28,28 @@ async def process_presentation(file: UploadFile = File(...)):
             # 1. Extract text from the presentation
             text_data = parse_pptx(temp_pptx_path)
 
-            # 2. Convert presentation slides to PNG images
-            image_output_dir = os.path.join(temp_dir, "images")
-            os.makedirs(image_output_dir)
-            
-            conversion_result = convert_pptx_to_png_libreoffice(temp_pptx_path, image_output_dir)
-            if conversion_result.get("error"):
-                raise HTTPException(status_code=500, detail=conversion_result["error"])
-            
-            # Here you would typically upload PNGs to a cloud storage (like S3 or Vercel Blob)
-            # and get back public URLs. For this MVP, we will return local paths as a placeholder.
-            # In a real deployment, this part needs to be implemented.
-            image_paths = conversion_result.get("image_paths", [])
+            # 2. Convert presentation slides to PNG images (DISABLED FOR NOW)
+            # image_output_dir = os.path.join(temp_dir, "images")
+            # os.makedirs(image_output_dir)
+            # conversion_result = convert_pptx_to_png_libreoffice(temp_pptx_path, image_output_dir)
+            # if conversion_result.get("error"):
+            #     raise HTTPException(status_code=500, detail=conversion_result["error"])
+            # image_paths = conversion_result.get("image_paths", [])
+            image_paths = [] # Return an empty array for now
 
             return JSONResponse(content={
                 "filename": file.filename,
                 "text_data": text_data,
-                "image_paths": image_paths # Placeholder: these are temporary paths
+                "image_paths": image_paths
             })
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            # This is a broad catch-all to ensure we see the error
+            # In a real production app, you might want more specific error handling
+            return JSONResponse(
+                status_code=500,
+                content={"error": "An unexpected error occurred in the Python service.", "details": str(e)}
+            )
         finally:
             # The 'with' statement handles cleanup of the temporary directory
             pass
