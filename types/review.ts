@@ -1,25 +1,55 @@
-export interface SlideText {
-  slide: number;
-  text: string;
-}
-
-export interface SpellingError {
+export type SpellingError = {
   id: string;
   slideNumber: number;
   word: string;
   suggestion: string;
   type: 'spelling';
-}
+};
 
-export interface GrammarError {
+export type GrammarError = {
   id: string;
   slideNumber: number;
   text: string;
+  errorFragment?: string;
   error: string;
+  rule: string;
   suggestion: string;
-  rule?: string;
-  type: 'grammar' | 'punctuation' | 'capitalization';
+  type: 'grammar';
+};
+
+export type VisionError = {
+  id: string;
+  slideNumber: number;
+  text: string;
+  issue: string;
+  type: 'vision';
 }
+
+export type SlideReview = {
+  slideNumber: number;
+  spellingErrors: SpellingError[];
+  grammarErrors: GrammarError[];
+  visionErrors: VisionError[];
+};
+
+export type ReviewData = {
+  fileName: string;
+  totalSlides: number;
+  slideReviews: SlideReview[];
+  summary: {
+    totalErrors: number;
+    totalSpellingErrors: number;
+    totalGrammarErrors: number;
+    totalVisionErrors: number;
+    overallScore: number;
+    processingTime: number;
+  };
+};
+
+export type SlideText = {
+  slide: number;
+  text: string;
+};
 
 export interface WritingSuggestion {
   id: string;
@@ -43,14 +73,4 @@ export interface ReviewSummary {
   totalSuggestions: number;
   overallScore: number;
   processingTime: number;
-}
-
-export interface ReviewData {
-  fileName: string;
-  totalSlides: number;
-  spellingErrors: SpellingError[];
-  grammarErrors: GrammarError[];
-  writingSuggestions: WritingSuggestion[];
-  flowAnalysis: FlowAnalysis[];
-  summary: ReviewSummary;
 } 
