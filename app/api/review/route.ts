@@ -83,6 +83,14 @@ Return your response in this exact JSON format. If no errors are found, return a
 
 const spellingWhitelist = new Set(['AI', 'ML', 'UMA', 'CICERO', 'LLM', 'GPT']);
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+};
+
 // --- CORE LOGIC ---
 
 export async function POST(req: NextRequest) {
