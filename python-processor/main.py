@@ -12,8 +12,8 @@ from convert_pptx_to_png import convert_pptx_to_png_libreoffice
 app = FastAPI()
 
 @app.get("/")
-def read_root():
-    return {"status": "Python processor is running"}
+def health_check():
+    return {"status": "ok"}
 
 @app.post("/process/")
 async def process_presentation(file: UploadFile = File(...)):
