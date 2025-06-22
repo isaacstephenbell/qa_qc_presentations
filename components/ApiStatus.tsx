@@ -96,7 +96,7 @@ export default function ApiStatus() {
               <p className="font-medium">To fix this:</p>
               <ol className="list-decimal list-inside mt-1 space-y-1">
                 <li>Create a <code className="bg-red-100 px-1 rounded">.env.local</code> file in your project root</li>
-                <li>Add your Anthropic API key: <code className="bg-red-100 px-1 rounded">ANTHROPIC_API_KEY=your_key_here</code></li>
+                <li>Add your OpenAI API key: <code className="bg-red-100 px-1 rounded">OPENAI_API_KEY=your_key_here</code></li>
                 <li>Restart the development server</li>
               </ol>
             </div>

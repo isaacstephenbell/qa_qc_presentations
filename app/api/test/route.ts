@@ -1,45 +1,47 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-})
+import { ChatOpenAI } from "@langchain/openai"
 
 export async function GET() {
   try {
-    // Check if API key is configured
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const apiKey = process.env.OPENAI_API_KEY
+
+    if (!apiKey) {
       return NextResponse.json({
         status: 'error',
-        message: 'ANTHROPIC_API_KEY is not configured',
+        message: 'OPENAI_API_KEY is not configured',
         configured: false
       })
     }
 
+    const model = new ChatOpenAI({ openAIApiKey: apiKey })
+    
     // Test the API key with a simple request
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
-      max_tokens: 10,
-      messages: [
-        {
-          role: 'user',
-          content: 'Say "Hello"'
-        }
-      ]
-    })
+    const response = await model.invoke("Say 'Hello'")
 
-    return NextResponse.json({
-      status: 'success',
-      message: 'API is working correctly',
-      configured: true,
-      testResponse: response.content[0].type === 'text' ? response.content[0].text : 'Response received'
-    })
+    const testResponse = response.content.toString()
+
+    if (testResponse.toLowerCase().includes('hello')) {
+      return NextResponse.json({
+        status: 'success',
+        message: 'API is working correctly',
+        configured: true,
+        testResponse: testResponse
+      })
+    } else {
+      return NextResponse.json({
+        status: 'error',
+        message: 'API key seems configured, but test call failed.',
+        configured: true,
+        testResponse: testResponse
+      })
+    }
+
   } catch (error) {
     console.error('Test API error:', error)
     return NextResponse.json({
       status: 'error',
       message: error instanceof Error ? error.message : 'Unknown error',
-      configured: !!process.env.ANTHROPIC_API_KEY
+      configured: !!process.env.OPENAI_API_KEY
     })
   }
 } 
