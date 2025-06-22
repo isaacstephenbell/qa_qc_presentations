@@ -69,22 +69,6 @@ def convert_pptx_to_png_libreoffice(pptx_path, output_dir):
     except Exception as e:
         return {"error": f"An unexpected error occurred during conversion: {str(e)}"}
 
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(json.dumps({"error": "Usage: python convert_pptx_to_png.py <pptx_path> <output_dir>"}))
-        sys.exit(1)
-
-    pptx_file_path = sys.argv[1]
-    output_directory = sys.argv[2]
-    
-    # Ensure arguments are valid paths
-    if not os.path.isfile(pptx_file_path):
-        print(json.dumps({"error": f"Input file not found: {pptx_file_path}"}))
-        sys.exit(1)
-        
-    if not os.path.isdir(output_directory):
-        print(json.dumps({"error": f"Output directory not found: {output_directory}"}))
-        sys.exit(1)
-
-    result = convert_pptx_to_png_libreoffice(pptx_file_path, output_directory)
-    print(json.dumps(result)) 
+# The __main__ block is no longer needed for the service.
+# if __name__ == "__main__":
+#    ... 

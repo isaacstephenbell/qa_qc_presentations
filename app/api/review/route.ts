@@ -116,7 +116,18 @@ export async function POST(req: NextRequest) {
     tempFilePaths.push(tempFilePath);
 
     // 2. Extract text from the presentation
-    const slideData = await extractTextFromPowerPoint(tempFilePath);
+    // const slideData = await extractTextFromPowerPoint(tempFilePath);
+
+    // --- MVP MOCK DATA ---
+    // This mock data is used because the Python script cannot run on Vercel.
+    const slideData: SlideText[] = [
+      { slide: 1, text: "Company Overvew and Mision" },
+      { slide: 2, text: "Our inovative products serves a wide range of customers." },
+      { slide: 3, text: "Market Anlysis: Their is a huge opportunity in the tech sector." },
+      { slide: 4, text: "Financials: We has seen steady growth in revenu." },
+      { slide: 5, text: "Thank you for you're attention." }
+    ];
+    // --- END MOCK DATA ---
 
     // Vision analysis is disabled.
     const analysis = await analyzePresentation(slideData, [], path.basename(tempFilePath));

@@ -34,7 +34,7 @@ def extract_text_from_shape(shape):
 
 def parse_pptx(file_path):
     prs = Presentation(file_path)
-    slides = []
+    slides_data = []
 
     for i, slide in enumerate(prs.slides):
         title = ""
@@ -45,7 +45,6 @@ def parse_pptx(file_path):
         for shape in slide.shapes:
             all_texts.extend(extract_text_from_shape(shape))
         
-        # Remove duplicates while preserving order and filter out the title
         seen = {title} if title else set()
         unique_texts = []
         for text in all_texts:
@@ -55,19 +54,21 @@ def parse_pptx(file_path):
 
         bullets = [{"text": text, "is_bold": False, "indent_level": 0} for text in unique_texts]
 
-        slides.append({
+        slides_data.append({
             "slide_number": i + 1,
             "title": title,
             "bullets": bullets
         })
 
-    print(json.dumps(slides, indent=2))
+    return slides_data
 
-if __name__ == "__main__":
-    try:
-        if len(sys.argv) < 2:
-            raise ValueError("Missing file path argument.")
-        parse_pptx(sys.argv[1])
-    except Exception as e:
-        print(json.dumps({ "error": str(e) }), file=sys.stderr)
-        sys.exit(1) 
+# The __main__ block is no longer needed for the service,
+# but can be kept for optional direct testing.
+# if __name__ == "__main__":
+#     try:
+#         if len(sys.argv) < 2:
+#             raise ValueError("Missing file path argument.")
+#         parse_pptx(sys.argv[1])
+#     except Exception as e:
+#         print(json.dumps({ "error": str(e) }), file=sys.stderr)
+#         sys.exit(1) 
