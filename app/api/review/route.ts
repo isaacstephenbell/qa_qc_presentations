@@ -104,15 +104,8 @@ export async function POST(req: NextRequest) {
     // 1. Extract text from the presentation
     const slideData = await extractTextFromPowerPoint(tempFilePath);
 
-    // 2. Convert PPTX to PNGs for vision analysis (TEMPORARILY DISABLED)
-    // const pngOutputDir = await mkdtemp(path.join(os.tmpdir(), 'pptx-png-'));
-    // tempDirPaths.push(pngOutputDir);
-    // await convertPptxToPng(tempFilePath, pngOutputDir);
-    // const pngPaths = fs.readdirSync(pngOutputDir).map(f => path.join(pngOutputDir, f));
-    const pngPaths: string[] = []; // Pass an empty array to skip vision analysis
-
-    // 3. Run analysis pipeline
-    const analysis = await analyzePresentation(slideData, pngPaths, file.name);
+    // Vision analysis is disabled, so we pass an empty array.
+    const analysis = await analyzePresentation(slideData, [], file.name);
 
     return NextResponse.json({ success: true, data: analysis });
 
@@ -140,12 +133,10 @@ async function analyzePresentation(slideData: SlideText[], pngPaths: string[], f
 
   const slideReviews: SlideReview[] = [];
   for (const slide of slideData) {
-    const pngPath = pngPaths.find(p => p.includes(`slide${slide.slide}`));
-
     const textualErrors = await runTextualAnalysis(slide, model);
-    const visionErrors = pngPath ? await runVisionCheck(pngPath, slide.slide, model) : [];
+    const visionErrors: VisionError[] = []; // Vision analysis is disabled.
     
-    if (textualErrors.length > 0 || visionErrors.length > 0) {
+    if (textualErrors.length > 0) {
       slideReviews.push({
         slideNumber: slide.slide,
         textualErrors,
@@ -155,8 +146,8 @@ async function analyzePresentation(slideData: SlideText[], pngPaths: string[], f
   }
 
   const totalTextualErrors = slideReviews.reduce((sum, r) => sum + r.textualErrors.length, 0);
-  const totalVisionErrors = slideReviews.reduce((sum, r) => sum + r.visionErrors.length, 0);
-  const totalErrors = totalTextualErrors + totalVisionErrors;
+  const totalVisionErrors = 0; // Vision analysis is disabled.
+  const totalErrors = totalTextualErrors;
 
   return {
     fileName,
