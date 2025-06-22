@@ -1,50 +1,40 @@
-export type SpellingError = {
-  id: string;
-  slideNumber: number;
-  word: string;
-  suggestion: string;
-  type: 'spelling';
-};
+export interface ReviewData {
+  fileName: string;
+  totalSlides: number;
+  slideReviews: SlideReview[];
+  summary: {
+    totalErrors: number;
+    totalTextualErrors: number;
+    totalVisionErrors: number;
+    overallScore: number;
+    processingTime: number;
+  };
+}
 
-export type GrammarError = {
+export interface SlideReview {
+  slideNumber: number;
+  textualErrors: TextualError[];
+  visionErrors: VisionError[];
+}
+
+export interface TextualError {
   id: string;
   slideNumber: number;
+  type: 'Spelling' | 'Grammar' | 'Style' | 'Clarity';
   text: string;
   errorFragment?: string;
   error: string;
   rule: string;
   suggestion: string;
-  type: 'grammar';
-};
+}
 
-export type VisionError = {
+export interface VisionError {
   id: string;
   slideNumber: number;
   text: string;
   issue: string;
   type: 'vision';
 }
-
-export type SlideReview = {
-  slideNumber: number;
-  spellingErrors: SpellingError[];
-  grammarErrors: GrammarError[];
-  visionErrors: VisionError[];
-};
-
-export type ReviewData = {
-  fileName: string;
-  totalSlides: number;
-  slideReviews: SlideReview[];
-  summary: {
-    totalErrors: number;
-    totalSpellingErrors: number;
-    totalGrammarErrors: number;
-    totalVisionErrors: number;
-    overallScore: number;
-    processingTime: number;
-  };
-};
 
 export type SlideText = {
   slide: number;

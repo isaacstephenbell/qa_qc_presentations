@@ -20,6 +20,11 @@ export default function Home() {
     setIsProcessing(true)
   }
 
+  const handleReset = () => {
+    setReviewData(null)
+    setIsProcessing(false)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -75,7 +80,7 @@ export default function Home() {
                     </div>
                   </div>
                 ) : reviewData ? (
-                  <ReviewResults data={reviewData} />
+                  <ReviewResults data={reviewData} onReset={handleReset} />
                 ) : (
                   <div className="text-center py-12 text-gray-500">
                     <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">

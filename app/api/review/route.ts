@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, unlink, mkdtemp, rm } from 'fs/promises'
 import { ChatOpenAI } from "@langchain/openai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { ReviewData, GrammarError, SpellingError, VisionError, SlideText, SlideReview } from '@/types/review'
-import nspell from 'nspell';
+import { ReviewData, TextualError, VisionError, SlideText, SlideReview } from '@/types/review'
 import * as fs from 'fs';
-import path from 'path'
-import os from 'os'
+import * as path from 'path'
+import * as os from 'os'
 import { spawn } from 'child_process'
 
 // --- PROMPTS and CONFIG ---
@@ -28,32 +27,42 @@ Respond with a JSON array of issues using this exact format:
   }
 ]`;
 
-const grammarSystemPrompt = `You are an expert grammar and spelling checker. Your only task is to identify objective grammar, punctuation, and capitalization errors. Return your findings in the specified JSON format. Do not provide any commentary or text outside of the JSON object.
+const grammarSystemPrompt = `You are an expert editor and proofreader. Your task is to meticulously review the provided text for any and all errors, including spelling, grammar, punctuation, capitalization, style, and clarity. Return your findings in a structured JSON format.
 
-The JSON output should be an object with a single key "grammarErrors", which is an array of objects.
+The JSON output must be an object with a single key "textualErrors", which is an array of objects.
 Each error object must have the following keys:
+- "type": The category of the error. Must be one of: "Spelling", "Grammar", "Style", "Clarity".
 - "sentence": The full sentence where the error occurred.
-- "errorFragment": The exact word or phrase within the sentence that is incorrect. If the error is about the absence of something (e.g., a missing comma), this can be null.
-- "error": A short name for the error (e.g., "Subject-verb agreement").
-- "rule": A brief, one-sentence explanation of the grammar rule.
-- "suggestion": The full sentence corrected.
+- "errorFragment": The exact word or phrase within the sentence that is incorrect.
+- "error": A short name for the error (e.g., "Misspelled word", "Subject-verb agreement").
+- "rule": A brief, one-sentence explanation of the rule that was violated.
+- "suggestion": The full, corrected sentence.
 
 Example:
 {
-  "grammarErrors": [
+  "textualErrors": [
     {
-      "sentence": "The team were ready to begin.",
+      "type": "Spelling",
+      "sentence": "This is a sentance with a typo.",
+      "errorFragment": "sentance",
+      "error": "Misspelled word",
+      "rule": "Ensure all words are spelled correctly.",
+      "suggestion": "This is a sentence with a typo."
+    },
+    {
+      "type": "Grammar",
+      "sentence": "The team were ready.",
       "errorFragment": "were",
       "error": "Subject-verb agreement",
       "rule": "Use a singular verb for a collective noun acting as a single unit.",
-      "suggestion": "The team was ready to begin."
+      "suggestion": "The team was ready."
     }
   ]
 }
 
-If no errors are found, return:
+If no errors are found, you must return:
 {
-  "grammarErrors": []
+  "textualErrors": []
 }
 `;
 
@@ -73,8 +82,6 @@ Return your response in this exact JSON format. If no errors are found, return a
 }`;
 
 const spellingWhitelist = new Set(['AI', 'ML', 'UMA', 'CICERO', 'LLM', 'GPT']);
-
-type NSpell = ReturnType<typeof nspell>;
 
 // --- CORE LOGIC ---
 
@@ -129,31 +136,27 @@ export async function POST(req: NextRequest) {
 async function analyzePresentation(slideData: SlideText[], pngPaths: string[], fileName: string): Promise<ReviewData> {
   const startTime = Date.now();
   
-  const dictionary = await getDictionary();
   const model = createOpenAIModel();
 
   const slideReviews: SlideReview[] = [];
   for (const slide of slideData) {
     const pngPath = pngPaths.find(p => p.includes(`slide${slide.slide}`));
 
-    const spellingErrors = dictionary ? await runSpellingCheck(slide, dictionary) : [];
-    const grammarErrors = await runGrammarCheck(slide, model);
+    const textualErrors = await runTextualAnalysis(slide, model);
     const visionErrors = pngPath ? await runVisionCheck(pngPath, slide.slide, model) : [];
     
-    if (spellingErrors.length > 0 || grammarErrors.length > 0 || visionErrors.length > 0) {
+    if (textualErrors.length > 0 || visionErrors.length > 0) {
       slideReviews.push({
         slideNumber: slide.slide,
-        spellingErrors,
-        grammarErrors,
+        textualErrors,
         visionErrors
       });
     }
   }
 
-  const totalSpellingErrors = slideReviews.reduce((sum, r) => sum + r.spellingErrors.length, 0);
-  const totalGrammarErrors = slideReviews.reduce((sum, r) => sum + r.grammarErrors.length, 0);
+  const totalTextualErrors = slideReviews.reduce((sum, r) => sum + r.textualErrors.length, 0);
   const totalVisionErrors = slideReviews.reduce((sum, r) => sum + r.visionErrors.length, 0);
-  const totalErrors = totalSpellingErrors + totalGrammarErrors + totalVisionErrors;
+  const totalErrors = totalTextualErrors + totalVisionErrors;
 
   return {
     fileName,
@@ -161,8 +164,7 @@ async function analyzePresentation(slideData: SlideText[], pngPaths: string[], f
     slideReviews,
     summary: {
       totalErrors,
-      totalSpellingErrors,
-      totalGrammarErrors,
+      totalTextualErrors,
       totalVisionErrors,
       overallScore: Math.max(0, 100 - totalErrors * 5),
       processingTime: Date.now() - startTime,
@@ -198,60 +200,7 @@ function createOpenAIModel() {
   });
 }
 
-async function getDictionary(): Promise<NSpell | null> {
-  try {
-    const affPath = path.join(process.cwd(), 'dictionaries', 'en_US.aff');
-    const dicPath = path.join(process.cwd(), 'dictionaries', 'en_US.dic');
-
-    const aff = fs.readFileSync(affPath, 'utf8');
-    const dic = fs.readFileSync(dicPath, 'utf8');
-
-    const spell = nspell(aff, dic);
-    return spell;
-  } catch (err) {
-    console.error("Dictionary could not be loaded for nspell.", err);
-    return null;
-  }
-}
-
-function checkWord(word: string, dictionary: NSpell): boolean {
-  if (!word || word.length <= 1) return true;
-  if (dictionary.correct(word)) return true;
-  if (dictionary.correct(word.toLowerCase())) return true;
-  if (word.length > 1) {
-    const capitalized = word[0].toUpperCase() + word.slice(1).toLowerCase();
-    if (dictionary.correct(capitalized)) return true;
-  }
-  return false;
-}
-
-async function runSpellingCheck(slide: SlideText, dictionary: NSpell): Promise<SpellingError[]> {
-  const errors: SpellingError[] = [];
-  if (!slide.text) return errors;
-
-  const words = slide.text.match(/[\w'-]+/g) || [];
-  const flaggedWords = new Set<string>();
-
-  for (const originalWord of words) {
-    if (spellingWhitelist.has(originalWord.toUpperCase()) || !isNaN(parseInt(originalWord)) || flaggedWords.has(originalWord.toLowerCase())) {
-      continue;
-    }
-    if (!checkWord(originalWord, dictionary)) {
-      flaggedWords.add(originalWord.toLowerCase());
-      const suggestions = dictionary.suggest(originalWord.toLowerCase());
-      errors.push({
-        id: `${slide.slide}-sp-${originalWord}`,
-        slideNumber: slide.slide,
-        word: originalWord,
-        suggestion: suggestions.length > 0 ? suggestions[0] : "N/A",
-        type: "spelling"
-      });
-    }
-  }
-  return errors;
-}
-
-async function runGrammarCheck(slide: SlideText, model: ChatOpenAI): Promise<GrammarError[]> {
+async function runTextualAnalysis(slide: SlideText, model: ChatOpenAI): Promise<TextualError[]> {
   if (!slide.text || slide.text.trim().length < 5) return [];
 
   try {
@@ -261,20 +210,20 @@ async function runGrammarCheck(slide: SlideText, model: ChatOpenAI): Promise<Gra
     ], { response_format: { type: "json_object" } });
     
     const parsed = lenientJsonParse(response.content.toString());
-    if (!parsed.grammarErrors || !Array.isArray(parsed.grammarErrors)) return [];
+    if (!parsed.textualErrors || !Array.isArray(parsed.textualErrors)) return [];
 
-    return parsed.grammarErrors.map((err: any) => ({
-      id: `${slide.slide}-gr-${Math.random().toString(36).substring(2, 8)}`,
+    return parsed.textualErrors.map((err: any) => ({
+      id: `${slide.slide}-txt-${Math.random().toString(36).substring(2, 8)}`,
       slideNumber: slide.slide,
+      type: err.type || 'Grammar',
       text: err.sentence,
       errorFragment: err.errorFragment,
       error: err.error,
       rule: err.rule || "N/A",
       suggestion: err.suggestion,
-      type: "grammar"
     })).filter((e: any) => e.text && e.error && e.suggestion);
   } catch (e) {
-    console.warn(`AI grammar check failed for slide ${slide.slide}:`, e);
+    console.warn(`AI textual analysis failed for slide ${slide.slide}:`, e);
     return [];
   }
 }
@@ -311,12 +260,19 @@ async function runVisionCheck(imagePath: string, slideNumber: number, model: Cha
 
 // UTILITY FUNCTIONS
 
-function lenientJsonParse(jsonString: string) {
+function lenientJsonParse(json: string): any {
   try {
-    return JSON.parse(jsonString.replace(/```json/g, '').replace(/```/g, '').trim());
+    return JSON.parse(json);
   } catch (e) {
-    console.warn("JSON.parse failed for string:", jsonString, e);
-    return {}; // Return empty object on failure to prevent crashes
+    console.warn("Failed to parse strict JSON, trying lenient parse:", json);
+    try {
+      // A common failure is the AI wrapping the JSON in markdown backticks.
+      const sanitized = json.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(sanitized);
+    } catch (e2) {
+      console.error("Lenient JSON parsing also failed:", e2);
+      return {};
+    }
   }
 }
 
