@@ -95,25 +95,31 @@ export const config = {
 
 export async function POST(req: NextRequest) {
   const tempFilePaths: string[] = [];
-  const tempDirPaths: string[] = [];
 
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-    if (!file) {
-      return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
+    const body = await req.json();
+    const fileUrl = body.fileUrl;
+
+    if (!fileUrl) {
+      return NextResponse.json({ success: false, error: 'No file URL provided' }, { status: 400 });
     }
 
-    // 1. Save uploaded file temporarily
-    const tempFilePath = path.join(os.tmpdir(), `upload-${Date.now()}-${file.name}`);
-    await writeFile(tempFilePath, Buffer.from(await file.arrayBuffer()));
+    // 1. Download the file from Vercel Blob
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download file from blob: ${response.statusText}`);
+    }
+    const fileData = await response.arrayBuffer();
+    const fileExtension = path.extname(new URL(fileUrl).pathname);
+    const tempFilePath = path.join(os.tmpdir(), `review-${Date.now()}${fileExtension}`);
+    await writeFile(tempFilePath, Buffer.from(fileData));
     tempFilePaths.push(tempFilePath);
 
-    // 1. Extract text from the presentation
+    // 2. Extract text from the presentation
     const slideData = await extractTextFromPowerPoint(tempFilePath);
 
-    // Vision analysis is disabled, so we pass an empty array.
-    const analysis = await analyzePresentation(slideData, [], file.name);
+    // Vision analysis is disabled.
+    const analysis = await analyzePresentation(slideData, [], path.basename(tempFilePath));
 
     return NextResponse.json({ success: true, data: analysis });
 
@@ -127,9 +133,6 @@ export async function POST(req: NextRequest) {
     // 4. Cleanup all temporary files and directories
     for (const path of tempFilePaths) {
       await unlink(path).catch(e => console.warn(`Failed to cleanup temp file: ${path}`, e));
-    }
-    for (const path of tempDirPaths) {
-      await rm(path, { recursive: true, force: true }).catch(e => console.warn(`Failed to cleanup temp dir: ${path}`, e));
     }
   }
 }
