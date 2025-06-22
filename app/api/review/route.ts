@@ -125,8 +125,9 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error('❌ Top-level API error:', err);
+    const errorMessage = err instanceof Error ? err.message : 'An unknown server error occurred.';
     return NextResponse.json(
-      { success: false, error: 'Unhandled exception', details: err instanceof Error ? err.message : String(err) },
+      { success: false, error: 'Failed to process presentation', details: errorMessage },
       { status: 500 }
     );
   } finally {
@@ -142,19 +143,23 @@ async function analyzePresentation(slideData: SlideText[], pngPaths: string[], f
   
   const model = createOpenAIModel();
 
-  const slideReviews: SlideReview[] = [];
-  for (const slide of slideData) {
-    const textualErrors = await runTextualAnalysis(slide, model);
-    const visionErrors: VisionError[] = []; // Vision analysis is disabled.
-    
-    if (textualErrors.length > 0) {
-      slideReviews.push({
-        slideNumber: slide.slide,
-        textualErrors,
-        visionErrors
-      });
-    }
-  }
+  const analysisPromises = slideData.map(slide => 
+    runTextualAnalysis(slide, model).then(textualErrors => ({
+      slide,
+      textualErrors,
+      visionErrors: [] // Vision analysis is disabled.
+    }))
+  );
+
+  const analysisResults = await Promise.all(analysisPromises);
+
+  const slideReviews: SlideReview[] = analysisResults
+    .filter(result => result.textualErrors.length > 0)
+    .map(result => ({
+      slideNumber: result.slide.slide,
+      textualErrors: result.textualErrors,
+      visionErrors: result.visionErrors
+    }));
 
   const totalTextualErrors = slideReviews.reduce((sum, r) => sum + r.textualErrors.length, 0);
   const totalVisionErrors = 0; // Vision analysis is disabled.
@@ -278,25 +283,27 @@ function lenientJsonParse(json: string): any {
   }
 }
 
-function runPythonScript(scriptPath: string, args: string[]): Promise<any> {
+async function runPythonScript(scriptPath: string, args: string[]): Promise<any> {
   return new Promise((resolve, reject) => {
-    const pythonExecutable = "C:\\Users\\IsaacBell\\AppData\\Local\\Programs\\Python\\Python313\\python.exe";
-    const process = spawn(pythonExecutable, [scriptPath, ...args]);
-    
-    let stdout = '';
-    let stderr = '';
-    process.stdout.on('data', (data) => { stdout += data.toString(); });
-    process.stderr.on('data', (data) => { stderr += data.toString(); });
-
-    process.on('close', (code) => {
+    const pyProg = spawn('python', [scriptPath, ...args]);
+    let data = '';
+    let error = '';
+    pyProg.stdout.on('data', (chunk) => {
+      data += chunk.toString();
+    });
+    pyProg.stderr.on('data', (chunk) => {
+      error += chunk.toString();
+    });
+    pyProg.on('close', (code) => {
       if (code !== 0) {
-        console.error(`Python script ${scriptPath} exited with code ${code}. Stderr: ${stderr}`);
-        reject(new Error(stderr || `Python script failed with code ${code}`));
-      }
-      try {
-        resolve(JSON.parse(stdout));
-      } catch (e) {
-        reject(new Error('Failed to parse JSON from Python script.'));
+        console.error(`Python script exited with code ${code}. Stderr: ${error}`);
+        reject(new Error(error || `Python script failed with code ${code}`));
+      } else {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Failed to parse JSON from Python script. Output: ' + data));
+        }
       }
     });
   });

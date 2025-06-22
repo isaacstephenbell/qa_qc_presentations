@@ -56,8 +56,16 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
       })
 
       if (!reviewResponse.ok) {
-        const errorData = await reviewResponse.json()
-        throw new Error(errorData.error || `Server error: ${reviewResponse.status}`)
+        let errorMessage = `Server error: ${reviewResponse.status}`;
+        try {
+          // Try to parse JSON, but prepare for it to fail
+          const errorData = await reviewResponse.json();
+          errorMessage = errorData.details || errorData.error || 'An unknown error from the server.';
+        } catch (e) {
+          // If JSON parsing fails, use the response text as a fallback
+          errorMessage = await reviewResponse.text();
+        }
+        throw new Error(errorMessage);
       }
 
       const reviewData = await reviewResponse.json()
