@@ -6,7 +6,6 @@ import { ReviewData, TextualError, VisionError, SlideText, SlideReview } from '@
 import * as fs from 'fs';
 import * as path from 'path'
 import * as os from 'os'
-import { spawn } from 'child_process'
 
 // --- PROMPTS and CONFIG ---
 
@@ -94,43 +93,54 @@ export const config = {
 // --- CORE LOGIC ---
 
 export async function POST(req: NextRequest) {
-  const tempFilePaths: string[] = [];
+  const pythonProcessorUrl = process.env.PYTHON_PROCESSOR_URL;
+
+  if (!pythonProcessorUrl) {
+    console.error('PYTHON_PROCESSOR_URL is not set.');
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: Missing processor URL.' },
+      { status: 500 }
+    );
+  }
 
   try {
     const body = await req.json();
     const fileUrl = body.fileUrl;
+    const originalFileName = path.basename(new URL(fileUrl).pathname);
 
     if (!fileUrl) {
       return NextResponse.json({ success: false, error: 'No file URL provided' }, { status: 400 });
     }
 
     // 1. Download the file from Vercel Blob
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download file from blob: ${response.statusText}`);
+    const blobResponse = await fetch(fileUrl);
+    if (!blobResponse.ok) {
+      throw new Error(`Failed to download file from blob: ${blobResponse.statusText}`);
     }
-    const fileData = await response.arrayBuffer();
-    const fileExtension = path.extname(new URL(fileUrl).pathname);
-    const tempFilePath = path.join(os.tmpdir(), `review-${Date.now()}${fileExtension}`);
-    await writeFile(tempFilePath, Buffer.from(fileData));
-    tempFilePaths.push(tempFilePath);
+    const fileData = await blobResponse.blob();
 
-    // 2. Extract text from the presentation
-    // const slideData = await extractTextFromPowerPoint(tempFilePath);
+    // 2. Forward the file to the Python processor service
+    const formData = new FormData();
+    formData.append('file', fileData, originalFileName);
 
-    // --- MVP MOCK DATA ---
-    // This mock data is used because the Python script cannot run on Vercel.
-    const slideData: SlideText[] = [
-      { slide: 1, text: "Company Overvew and Mision" },
-      { slide: 2, text: "Our inovative products serves a wide range of customers." },
-      { slide: 3, text: "Market Anlysis: Their is a huge opportunity in the tech sector." },
-      { slide: 4, text: "Financials: We has seen steady growth in revenu." },
-      { slide: 5, text: "Thank you for you're attention." }
-    ];
-    // --- END MOCK DATA ---
+    const processResponse = await fetch(`${pythonProcessorUrl}/process/`, {
+      method: 'POST',
+      body: formData,
+    });
 
-    // Vision analysis is disabled.
-    const analysis = await analyzePresentation(slideData, [], path.basename(tempFilePath));
+    if (!processResponse.ok) {
+      const errorBody = await processResponse.text();
+      throw new Error(`Python processor service failed: ${processResponse.status} ${errorBody}`);
+    }
+
+    const processedData = await processResponse.json();
+    const slideData = processedData.text_data.map((slide: any) => ({
+        slide: slide.slide_number,
+        text: `${slide.title}\n${slide.bullets.map((b: any) => b.text).join('\n')}`
+    }));
+
+    // Vision analysis is disabled. The image paths are in processedData.image_paths
+    const analysis = await analyzePresentation(slideData, [], originalFileName);
 
     return NextResponse.json({ success: true, data: analysis });
 
@@ -141,11 +151,6 @@ export async function POST(req: NextRequest) {
       { success: false, error: 'Failed to process presentation', details: errorMessage },
       { status: 500 }
     );
-  } finally {
-    // 4. Cleanup all temporary files and directories
-    for (const path of tempFilePaths) {
-      await unlink(path).catch(e => console.warn(`Failed to cleanup temp file: ${path}`, e));
-    }
   }
 }
 
@@ -191,23 +196,6 @@ async function analyzePresentation(slideData: SlideText[], pngPaths: string[], f
 }
 
 // --- HELPER FUNCTIONS ---
-
-// Text Extraction & PNG Conversion
-async function extractTextFromPowerPoint(filePath: string): Promise<SlideText[]> {
-  const parsed = await runPythonScript('./scripts/parse_pptx.py', [filePath]);
-  return parsed.map((slide: any) => ({
-    slide: slide.slide_number,
-    text: `${slide.title}\n${slide.bullets.map((b: any) => b.text).join('\n')}`
-  }));
-}
-
-async function convertPptxToPng(filePath: string, outputDir: string): Promise<any> {
-  const result = await runPythonScript('./scripts/convert_pptx_to_png.py', [filePath, outputDir]);
-  if (result.error) {
-    throw new Error(`Python script failed: ${JSON.stringify(result)}`);
-  }
-  return result;
-}
 
 // Analysis Functions
 function createOpenAIModel() {
@@ -292,30 +280,4 @@ function lenientJsonParse(json: string): any {
       return {};
     }
   }
-}
-
-async function runPythonScript(scriptPath: string, args: string[]): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const pyProg = spawn('python', [scriptPath, ...args]);
-    let data = '';
-    let error = '';
-    pyProg.stdout.on('data', (chunk) => {
-      data += chunk.toString();
-    });
-    pyProg.stderr.on('data', (chunk) => {
-      error += chunk.toString();
-    });
-    pyProg.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`Python script exited with code ${code}. Stderr: ${error}`);
-        reject(new Error(error || `Python script failed with code ${code}`));
-      } else {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error('Failed to parse JSON from Python script. Output: ' + data));
-        }
-      }
-    });
-  });
 } 
