@@ -24,7 +24,7 @@ Respond with a JSON array of issues using this format:
 ]`;
 
 async function callGeminiVision(base64Png: string, prompt: string, apiKey: string) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-vision:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-vision:generateContent?key=${apiKey}`;
   console.log('📡 [Gemini] Preparing request...');
   const body = {
     contents: [
