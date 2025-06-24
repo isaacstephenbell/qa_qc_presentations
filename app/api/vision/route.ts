@@ -5,23 +5,32 @@ import * as path from 'path'
 import * as os from 'os'
 
 const visionPrompt = (slideNumber: number) => `
-You are an expert presentation reviewer. Review this slide image for:
-- Inconsistent bullet spacing
-- Misaligned elements (titles, text boxes, logos, etc.)
-- Inconsistent font styles or sizes
-- Overlapping elements
-- Text cut off or overflowing boxes
-- Missing branding elements (e.g., logo in top-right)
-- Uneven slide layouts or spacing inconsistencies
+You are a meticulous presentation QA reviewer.
 
-Respond with a JSON array of issues using this format:
+The following image is slide ${slideNumber} of a corporate presentation.
+
+Your job is to identify any **visual formatting errors**, including:
+- Misaligned text, titles, charts, or shapes
+- Overlapping elements
+- Inconsistent spacing between bullets or lines
+- Missing logos or branding
+- Cut-off or overflowing text
+- Inconsistent fonts (size, weight, style)
+- Uneven layout or unbalanced visual spacing
+
+Be aggressive. Assume you're auditing this for professional delivery.
+
+Output a JSON array like this:
 [
   {
-    "text": "the text or area with the issue (if visible)",
-    "issue": "e.g., Overlapping elements: title overlaps with logo",
-    "type": "formatting|alignment|font|branding|layout|other"
+    "text": "(brief visible text or area with issue)",
+    "issue": "(specific visual problem)",
+    "type": "alignment | layout | font | branding | other"
   }
-]`;
+]
+
+If no issues are visible, return an empty array: []
+`;
 
 async function callOpenAIVision(base64Png: string, prompt: string, apiKey: string) {
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -36,7 +45,8 @@ async function callOpenAIVision(base64Png: string, prompt: string, apiKey: strin
         ]
       }
     ],
-    max_tokens: 1024
+    max_tokens: 1024,
+    temperature: 0.3
   };
   const response = await fetch(url, {
     method: 'POST',
