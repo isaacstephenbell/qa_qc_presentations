@@ -23,64 +23,59 @@ Respond with a JSON array of issues using this format:
   }
 ]`;
 
-async function callGeminiVision(base64Png: string, prompt: string, apiKey: string) {
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent?key=${apiKey}`;
-  console.log('📡 [Gemini] Preparing request...');
+async function callOpenAIVision(base64Png: string, prompt: string, apiKey: string) {
+  const url = 'https://api.openai.com/v1/chat/completions';
   const body = {
-    contents: [
-      { parts: [{ text: prompt }] },
-      { parts: [{ inlineData: { mimeType: "image/png", data: base64Png } }] }
-    ]
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Png}` } }
+        ]
+      }
+    ],
+    max_tokens: 1024
   };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  const result = await response.json();
+  // Extract the text response from OpenAI
+  const text = result.choices?.[0]?.message?.content || '';
+  let parsed;
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    console.log(`📬 [Gemini] Response status: ${response.status}`);
-    const rawText = await response.text();
-    console.log(`[Gemini] Raw response body:`, rawText);
-    if (!response.ok) {
-      throw new Error(`Gemini API failed: ${response.status} ${rawText}`);
-    }
-    const result = JSON.parse(rawText);
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-      console.log('✅ [Gemini] Parsed response:', parsed);
-    } catch (parseError) {
-      console.warn('⚠️ [Gemini] Failed to parse as JSON. Raw text:', text);
-      parsed = [];
-    }
-    return parsed;
-  } catch (err) {
-    console.error('❌ [Gemini] Fetch error:', err);
-    throw err;
+    parsed = JSON.parse(text);
+  } catch (e) {
+    parsed = [];
   }
+  return parsed;
 }
 
 export async function POST(req: NextRequest) {
   const pythonProcessorUrl = process.env.PYTHON_PROCESSOR_URL;
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
   console.log('PYTHON_PROCESSOR_URL:', pythonProcessorUrl);
   
   console.log('🚀 Vision API called');
   
   console.log('🔧 Environment check:', {
     hasPythonUrl: !!pythonProcessorUrl,
-    hasGeminiKey: !!geminiApiKey,
+    hasOpenAIKey: !!openaiApiKey,
     pythonUrl: pythonProcessorUrl,
-    geminiKeyPrefix: geminiApiKey ? geminiApiKey.substring(0, 10) + '...' : 'NOT_SET'
+    openaiKeyPrefix: openaiApiKey ? openaiApiKey.substring(0, 10) + '...' : 'NOT_SET'
   });
   
-  if (!pythonProcessorUrl || !geminiApiKey) {
+  if (!pythonProcessorUrl || !openaiApiKey) {
     console.error('❌ Missing environment variables');
-    console.error('PYTHON_PROCESSOR_URL:', pythonProcessorUrl);
-    console.error('GEMINI_API_KEY:', geminiApiKey ? 'SET' : 'NOT_SET');
     return NextResponse.json(
-      { success: false, error: 'Server configuration error: Missing processor or Gemini API key.' },
+      { success: false, error: 'Server configuration error: Missing processor or OpenAI API key.' },
       { status: 500 }
     );
   }
@@ -131,7 +126,7 @@ export async function POST(req: NextRequest) {
     console.log('🧠 [Vision] images received from processor:', images.length);
 
     if (images.length === 0) {
-      console.warn('⚠️ No images returned from Python processor. Skipping Gemini calls.');
+      console.warn('⚠️ No images returned from Python processor. Skipping OpenAI calls.');
       return NextResponse.json({ 
         success: true, 
         data: { 
@@ -142,17 +137,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Add log before Gemini loop
-    console.log('🟢 About to call Gemini for each slide:', images.length, 'slides');
-    // Run Gemini Vision on each base64 image
-    const visionResults = await Promise.all(images.map(async (img, idx) => {
-      console.log(`📨 Calling Gemini for slide ${img.slide}`);
+    // Add log before OpenAI loop
+    console.log('🟢 About to call OpenAI for each slide:', images.length, 'slides');
+    // Run OpenAI Vision on each base64 image
+    const visionResults = await Promise.all(images.map(async (img) => {
+      console.log(`📨 Calling OpenAI for slide ${img.slide}`);
       try {
-        const findings = await callGeminiVision(img.base64, visionPrompt(img.slide), geminiApiKey);
-        console.log(`✅ Gemini call succeeded for slide ${img.slide}`);
+        const findings = await callOpenAIVision(img.base64, visionPrompt(img.slide), openaiApiKey);
+        console.log(`✅ OpenAI call succeeded for slide ${img.slide}`);
         return { slide: img.slide, findings: Array.isArray(findings) ? findings : [] };
       } catch (e) {
-        console.error(`❌ Gemini call failed for slide ${img.slide}:`, e);
+        console.error(`❌ OpenAI call failed for slide ${img.slide}:`, e);
         return { slide: img.slide, findings: [], error: e instanceof Error ? e.message : String(e) };
       }
     }));
