@@ -24,7 +24,7 @@ Respond with a JSON array of issues using this format:
 ]`;
 
 async function callGeminiVision(base64Png: string, prompt: string, apiKey: string) {
-  console.log('🔍 Calling Gemini Vision API...');
+  console.log('🔍 [Gemini] Preparing to call Gemini Vision API...');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-vision:generateContent?key=${apiKey}`;
   const body = {
     contents: [
@@ -34,34 +34,33 @@ async function callGeminiVision(base64Png: string, prompt: string, apiKey: strin
   };
   
   try {
+    console.log('🔍 [Gemini] Sending POST request to:', url);
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    
+    console.log('🔍 [Gemini] Response status:', response.status);
+    const responseText = await response.text();
+    console.log('🔍 [Gemini] Response body:', responseText);
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Gemini API error:', response.status, errorText);
-      throw new Error(`Gemini API error: ${response.status} ${errorText}`);
+      console.error('❌ [Gemini] Gemini API error:', response.status, responseText);
+      throw new Error(`Gemini API error: ${response.status} ${responseText}`);
     }
-    
-    const result = await response.json();
-    console.log('✅ Gemini API response received');
-    
+    const result = JSON.parse(responseText);
     // Gemini returns an array of candidates, each with content.parts[0].text
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     let parsed;
     try {
       parsed = JSON.parse(text);
-      console.log('✅ Parsed Gemini response:', parsed);
+      console.log('✅ [Gemini] Parsed Gemini response:', parsed);
     } catch (parseError) {
-      console.warn('⚠️ Failed to parse Gemini response as JSON:', text);
+      console.warn('⚠️ [Gemini] Failed to parse Gemini response as JSON:', text);
       parsed = [];
     }
     return parsed;
   } catch (error) {
-    console.error('❌ Error calling Gemini Vision:', error);
+    console.error('❌ [Gemini] Error calling Gemini Vision:', error);
     throw error;
   }
 }
@@ -161,8 +160,10 @@ export async function POST(req: NextRequest) {
         const base64Image = imageBuffer.toString('base64');
         console.log(`📸 Slide ${idx + 1} converted to base64, size: ${base64Image.length}`);
         
+        // Add log before calling Gemini
+        console.log(`[Gemini] Calling Gemini Vision for slide ${idx + 1}`);
         const findings = await callGeminiVision(base64Image, visionPrompt(idx + 1), geminiApiKey);
-        console.log(`✅ Slide ${idx + 1} analysis complete, findings:`, findings.length);
+        console.log(`✅ [Gemini] Slide ${idx + 1} analysis complete, findings:`, findings.length);
         
         return { slide: idx + 1, findings: Array.isArray(findings) ? findings : [] };
       } catch (e) {
