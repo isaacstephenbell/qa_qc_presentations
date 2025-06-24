@@ -122,8 +122,35 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
           }
           throw new Error(errorMessage);
         }
-        const visionJson = await visionResponse.json()
-        reviewData = { vision: visionJson && typeof visionJson === 'object' && 'data' in visionJson ? visionJson.data : visionJson }
+        const visionJson = await visionResponse.json();
+        // Normalize vision-only response to ReviewData structure
+        if (visionJson && visionJson.data && visionJson.data.visionResults) {
+          const slideReviews = (visionJson.data.visionResults || []).map((slide: any) => ({
+            slideNumber: slide.slide,
+            textualErrors: [],
+            visionErrors: (slide.findings || []).map((finding: any, idx: number) => ({
+              id: `${slide.slide}-vis-${idx}`,
+              slideNumber: slide.slide,
+              text: finding.text || "",
+              issue: finding.issue || "",
+              type: 'vision'
+            }))
+          }));
+          reviewData = {
+            fileName: visionJson.data.fileName,
+            totalSlides: slideReviews.length,
+            slideReviews,
+            summary: {
+              totalErrors: slideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0),
+              totalTextualErrors: 0,
+              totalVisionErrors: slideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0),
+              overallScore: 100, // or calculate as needed
+              processingTime: 0 // or set as needed
+            }
+          };
+        } else {
+          reviewData = { vision: visionJson && typeof visionJson === 'object' && 'data' in visionJson ? visionJson.data : visionJson };
+        }
       }
       onReviewComplete(reviewData)
     } catch (err) {
