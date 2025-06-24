@@ -6,7 +6,9 @@ import shutil
 
 def convert_pptx_to_png_libreoffice(pptx_path, output_dir):
     """
-    Converts a .pptx file to a series of .png images using the LibreOffice CLI.
+    Converts a .pptx file to a series of .png images using LibreOffice and pdftoppm.
+    1. Convert PPTX to PDF with LibreOffice.
+    2. Convert PDF pages to PNGs with pdftoppm (one PNG per slide).
     """
     try:
         # LibreOffice can be called via 'libreoffice' or 'soffice'
@@ -15,57 +17,61 @@ def convert_pptx_to_png_libreoffice(pptx_path, output_dir):
             if shutil.which(cmd):
                 cmd_base = cmd
                 break
-        
         if not cmd_base:
             return {
                 "error": "LibreOffice not found. Please install it and ensure its executable is in your system's PATH."
             }
-
-        command = [
+        # Step 1: Convert PPTX to PDF
+        pdf_path = os.path.join(output_dir, "slides.pdf")
+        command_pdf = [
             cmd_base,
             "--headless",
             "--convert-to",
-            "png",
+            "pdf",
             pptx_path,
             "--outdir",
             output_dir,
         ]
-        
-        process = subprocess.run(
-            command,
+        process_pdf = subprocess.run(
+            command_pdf,
             capture_output=True,
             text=True,
-            timeout=120  # 2-minute timeout
+            timeout=120
         )
-
-        if process.returncode != 0:
-            error_message = f"LibreOffice conversion failed with exit code {process.returncode}."
-            return {"error": error_message, "stderr": process.stderr, "stdout": process.stdout}
-
-        # On successful conversion of a multi-slide presentation, LibreOffice may create
-        # a single PNG file. If multiple slides need to be handled, exporting to PDF first
-        # and then converting PDF pages to PNGs is a more reliable pattern, but for now
-        # we adhere to the simpler direct PNG conversion.
-        
-        # The output PNG will have the same basename as the input pptx.
-        base_name = os.path.splitext(os.path.basename(pptx_path))[0]
-        expected_png = os.path.join(output_dir, f"{base_name}.png")
-
-        if not os.path.exists(expected_png):
-            # Fallback to find any generated png, as behavior might differ
-            png_files = sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.lower().endswith(".png")])
-            if not png_files:
-                 return {
-                    "error": "LibreOffice ran but no PNG file was created.",
-                    "stdout": process.stdout,
-                    "stderr": process.stderr
-                }
-            return {"image_paths": png_files}
-
-        return {"image_paths": [expected_png]}
-
+        if process_pdf.returncode != 0:
+            error_message = f"LibreOffice PDF conversion failed with exit code {process_pdf.returncode}."
+            return {"error": error_message, "stderr": process_pdf.stderr, "stdout": process_pdf.stdout}
+        # Find the generated PDF (LibreOffice may change the name)
+        pdf_files = [f for f in os.listdir(output_dir) if f.lower().endswith(".pdf")]
+        if not pdf_files:
+            return {"error": "No PDF file was created during conversion."}
+        pdf_path = os.path.join(output_dir, pdf_files[0])
+        # Step 2: Convert PDF to PNGs (one per page)
+        if not shutil.which("pdftoppm"):
+            return {"error": "pdftoppm not found. Please install poppler-utils (pdftoppm) and ensure it's in your PATH."}
+        png_prefix = os.path.join(output_dir, "slide")
+        command_png = [
+            "pdftoppm",
+            "-png",
+            pdf_path,
+            png_prefix
+        ]
+        process_png = subprocess.run(
+            command_png,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        if process_png.returncode != 0:
+            error_message = f"pdftoppm conversion failed with exit code {process_png.returncode}."
+            return {"error": error_message, "stderr": process_png.stderr, "stdout": process_png.stdout}
+        # Collect all PNGs in order
+        png_files = sorted([os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.lower().endswith(".png")])
+        if not png_files:
+            return {"error": "No PNG files were created from PDF conversion."}
+        return {"image_paths": png_files}
     except subprocess.TimeoutExpired:
-        return {"error": "LibreOffice conversion timed out after 120 seconds."}
+        return {"error": "Conversion timed out after 120 seconds."}
     except Exception as e:
         return {"error": f"An unexpected error occurred during conversion: {str(e)}"}
 
