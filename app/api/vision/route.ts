@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use the new images array with base64 data
-    const images = processedData.images || [];
+    const images: { slide: number; base64: string }[] = processedData.images || [];
     console.log('🧠 [Vision] images received from processor:', images.length);
 
     if (images.length === 0) {
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     // Add log before Gemini loop
     console.log('🟢 About to call Gemini for each slide:', images.length, 'slides');
     // Run Gemini Vision on each base64 image
-    const visionResults = await Promise.all(images.map(async (img: { slide: number; base64: string }, idx: number) => {
+    const visionResults = await Promise.all(images.map(async (img, idx) => {
       console.log(`📨 Calling Gemini for slide ${img.slide}`);
       try {
         const findings = await callGeminiVision(img.base64, visionPrompt(img.slide), geminiApiKey);
