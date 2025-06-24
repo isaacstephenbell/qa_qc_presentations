@@ -88,11 +88,13 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       body: formData,
     });
+    let processedData;
     if (!processResponse.ok) {
       const errorBody = await processResponse.text();
       throw new Error(`Python processor service failed: ${processResponse.status} ${errorBody}`);
+    } else {
+      processedData = await processResponse.json();
     }
-    const processedData = await processResponse.json();
     const imagePaths = processedData.image_paths || [];
     // Run Gemini Vision on each PNG
     const visionResults = await Promise.all(imagePaths.map(async (imgPath: string, idx: number) => {
