@@ -1,6 +1,6 @@
 # PowerPoint Review System
 
-An AI-powered web application designed for management consulting firms to review PowerPoint presentations for grammatical errors, professional writing improvements, and narrative flow analysis.
+An AI-powered web application designed for management consulting firms to review PowerPoint presentations for grammatical errors, professional writing improvements, narrative flow analysis, and visual formatting issues using OpenAI's GPT-4o (including Vision capabilities).
 
 ## Features
 
@@ -8,6 +8,7 @@ An AI-powered web application designed for management consulting firms to review
 - **Grammar & Spelling Review**: Catch spelling errors, grammatical mistakes, and punctuation issues
 - **Professional Writing Suggestions**: Improve clarity, tone, and professionalism
 - **Narrative Flow Analysis**: Analyze presentation structure and logical flow
+- **Visual QA (Vision)**: Detect formatting, alignment, and branding issues using slide images
 
 ### Technical Features
 - Drag-and-drop file upload interface
@@ -29,15 +30,15 @@ An AI-powered web application designed for management consulting firms to review
 
 ### Backend
 - **API**: Next.js API Routes
-- **AI Integration**: Anthropic Claude API
-- **File Processing**: Custom PowerPoint text extraction
+- **AI Integration**: OpenAI GPT-4o (Vision)
+- **File Processing**: Custom PowerPoint text extraction and slide image conversion
 - **File Storage**: Temporary local storage
 
 ## Prerequisites
 
 - Node.js 18+ 
 - npm or yarn
-- Anthropic API key
+- OpenAI API key
 
 ## Installation
 
@@ -55,15 +56,15 @@ An AI-powered web application designed for management consulting firms to review
 3. **Set up environment variables**
    Create a `.env.local` file in the root directory:
    ```env
-   ANTHROPIC_API_KEY=your_anthropic_api_key_here
+   OPENAI_API_KEY=your_openai_api_key_here
    NEXTAUTH_SECRET=your_nextauth_secret_here
    NEXTAUTH_URL=http://localhost:3000
    MAX_FILE_SIZE=52428800
    UPLOAD_DIR=./temp
    ```
 
-4. **Get your Anthropic API key**
-   - Sign up at [Anthropic Console](https://console.anthropic.com/)
+4. **Get your OpenAI API key**
+   - Sign up at [OpenAI Platform](https://platform.openai.com/)
    - Create an API key
    - Add it to your `.env.local` file
 
@@ -74,7 +75,7 @@ First, install the dependencies and set up your environment:
 ```bash
 npm install
 
-# Create a .env.local file and add your Anthropic API key
+# Create a .env.local file and add your OpenAI API key
 cp .env.example .env.local
 # Now, edit .env.local with your key
 
@@ -98,13 +99,14 @@ npm run dev
 
 2. **Wait for processing**
    - The system will extract text from your slides
-   - Claude AI will analyze the content
+   - OpenAI GPT-4o will analyze the content and/or slide images
    - Progress indicators will show the current status
 
 3. **Review results**
    - **Grammar & Spelling**: View and fix grammatical errors
    - **Writing Suggestions**: See professional writing improvements
    - **Narrative Flow**: Analyze presentation structure
+   - **Vision QA**: Review visual formatting and design issues
 
 4. **Export results**
    - Click the "Export Report" button to download results
@@ -119,7 +121,10 @@ npm run dev
 ## API Endpoints
 
 ### POST /api/review
-Upload and analyze a PowerPoint file.
+Upload and analyze a PowerPoint file (text-based analysis).
+
+### POST /api/vision
+Upload and analyze a PowerPoint file (vision-based analysis).
 
 **Request:**
 - Content-Type: multipart/form-data
@@ -133,6 +138,7 @@ Upload and analyze a PowerPoint file.
   "grammarErrors": [...],
   "writingSuggestions": [...],
   "flowAnalysis": [...],
+  "visionFindings": [...],
   "summary": {
     "totalErrors": 5,
     "totalSuggestions": 3,
@@ -172,8 +178,8 @@ Upload and analyze a PowerPoint file.
 - Update `app/globals.css` for custom styles
 
 ### AI Analysis
-- Edit the prompt in `app/api/review/route.ts` to customize Claude's analysis
-- Adjust scoring algorithms in the `analyzeWithClaude` function
+- Edit the prompt in `app/api/review/route.ts` to customize OpenAI's analysis
+- Adjust scoring algorithms in the `analyzePresentation` function
 
 ### File Processing
 - Implement proper PowerPoint parsing in `extractTextFromPowerPoint` function
@@ -196,7 +202,7 @@ Upload and analyze a PowerPoint file.
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `ANTHROPIC_API_KEY` | Your Anthropic API key | Yes |
+| `OPENAI_API_KEY` | Your OpenAI API key | Yes |
 | `NEXTAUTH_SECRET` | Secret for NextAuth.js | No |
 | `NEXTAUTH_URL` | Your application URL | No |
 | `MAX_FILE_SIZE` | Maximum file size in bytes | No |
