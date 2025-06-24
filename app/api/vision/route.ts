@@ -122,15 +122,16 @@ export async function POST(req: NextRequest) {
       throw new Error(`Python processor service failed: ${processResponse.status} ${errorBody}`);
     } else {
       processedData = await processResponse.json();
-      console.log('🟠 Raw Python processor response:', processedData);
+      console.log('📦 [Vision] Raw processedData from Python:', JSON.stringify(processedData, null, 2));
       console.log('✅ Python processor response:', processedData);
     }
-    
-    const imagePaths = processedData.image_paths || [];
-    console.log('🖼️ Image paths received:', imagePaths);
-    
-    if (imagePaths.length === 0) {
-      console.warn('⚠️ No image paths returned from Python processor. Skipping Gemini calls.');
+
+    // Use the new images array with base64 data
+    const images = processedData.images || [];
+    console.log('🧠 [Vision] images received from processor:', images.length);
+
+    if (images.length === 0) {
+      console.warn('⚠️ No images returned from Python processor. Skipping Gemini calls.');
       return NextResponse.json({ 
         success: true, 
         data: { 
@@ -140,27 +141,19 @@ export async function POST(req: NextRequest) {
         } 
       });
     }
-    
+
     // Add log before Gemini loop
-    console.log('🟢 About to call Gemini for each slide:', imagePaths.length, 'slides');
-    // Run Gemini Vision on each PNG
-    console.log('🔍 Starting Gemini Vision analysis on', imagePaths.length, 'slides...');
-    const visionResults = await Promise.all(imagePaths.map(async (imgPath: string, idx: number) => {
-      console.log(`📨 Calling Gemini for slide ${idx + 1}`);
+    console.log('🟢 About to call Gemini for each slide:', images.length, 'slides');
+    // Run Gemini Vision on each base64 image
+    const visionResults = await Promise.all(images.map(async (img: { slide: number; base64: string }, idx: number) => {
+      console.log(`📨 Calling Gemini for slide ${img.slide}`);
       try {
-        // Check if file exists
-        if (!fs.existsSync(imgPath)) {
-          console.error(`❌ Image file not found: ${imgPath}`);
-          return { slide: idx + 1, findings: [], error: `Image file not found: ${imgPath}` };
-        }
-        const imageBuffer = fs.readFileSync(imgPath);
-        const base64Image = imageBuffer.toString('base64');
-        const findings = await callGeminiVision(base64Image, visionPrompt(idx + 1), geminiApiKey);
-        console.log(`✅ Gemini call succeeded for slide ${idx + 1}`);
-        return { slide: idx + 1, findings: Array.isArray(findings) ? findings : [] };
+        const findings = await callGeminiVision(img.base64, visionPrompt(img.slide), geminiApiKey);
+        console.log(`✅ Gemini call succeeded for slide ${img.slide}`);
+        return { slide: img.slide, findings: Array.isArray(findings) ? findings : [] };
       } catch (e) {
-        console.error(`❌ Gemini call failed for slide ${idx + 1}:`, e);
-        return { slide: idx + 1, findings: [], error: e instanceof Error ? e.message : String(e) };
+        console.error(`❌ Gemini call failed for slide ${img.slide}:`, e);
+        return { slide: img.slide, findings: [], error: e instanceof Error ? e.message : String(e) };
       }
     }));
     
