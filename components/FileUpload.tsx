@@ -15,7 +15,7 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [textQA, setTextQA] = useState(true)
-  const [visionQA, setVisionQA] = useState(false)
+  const [visionQA, setVisionQA] = useState(true)
 
   const onDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -82,9 +82,49 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
         }
         const textData = await textRes.json()
         const visionData = await visionRes.json()
-        reviewData = {
-          ...(textData && typeof textData === 'object' && 'data' in textData ? textData.data : {}),
-          vision: visionData && typeof visionData === 'object' && 'data' in visionData ? visionData.data : visionData
+        
+        // Combine text and vision results
+        const textReviewData = textData && typeof textData === 'object' && 'data' in textData ? textData.data : {};
+        const visionReviewData = visionData && typeof visionData === 'object' && 'data' in visionData ? visionData.data : {};
+        
+        // Merge vision results into the text review data structure
+        if (visionReviewData.visionResults) {
+          const visionSlideReviews = visionReviewData.visionResults.map((slide: any) => ({
+            slideNumber: slide.slide,
+            textualErrors: [],
+            visionErrors: (slide.findings || []).map((finding: any, idx: number) => ({
+              id: `${slide.slide}-vis-${idx}`,
+              slideNumber: slide.slide,
+              text: finding.text || "",
+              issue: finding.issue || "",
+              type: 'vision'
+            }))
+          }));
+          
+          // Merge with existing text reviews
+          const existingSlideReviews = textReviewData.slideReviews || [];
+          const mergedSlideReviews = [...existingSlideReviews];
+          
+          visionSlideReviews.forEach((visionSlide: any) => {
+            const existingSlide = mergedSlideReviews.find(s => s.slideNumber === visionSlide.slideNumber);
+            if (existingSlide) {
+              existingSlide.visionErrors = visionSlide.visionErrors;
+            } else {
+              mergedSlideReviews.push(visionSlide);
+            }
+          });
+          
+          reviewData = {
+            ...textReviewData,
+            slideReviews: mergedSlideReviews,
+            summary: {
+              ...textReviewData.summary,
+              totalVisionErrors: mergedSlideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0),
+              totalErrors: (textReviewData.summary?.totalErrors || 0) + mergedSlideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0)
+            }
+          };
+        } else {
+          reviewData = textReviewData;
         }
       } else if (textQA) {
         const reviewResponse = await fetch('/api/review', {
