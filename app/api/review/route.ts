@@ -9,23 +9,6 @@ import * as os from 'os'
 
 // --- PROMPTS and CONFIG ---
 
-const visionSystemPrompt = `You are an expert presentation reviewer. Your task is to review a slide image for spelling, grammar, punctuation, and capitalization errors. Be concise and objective. Reply with a JSON array of issues found. If no issues are found, return an empty array.`;
-
-const buildVisionPrompt = (slideNumber: number) => `
-Please review this slide image for:
-- Spelling mistakes (even in headings or labels)
-- Grammar or punctuation errors
-- Misuse of capitalization or formatting in text
-
-Respond with a JSON array of issues using this exact format:
-[
-  {
-    "text": "the text or area with the issue (if visible)",
-    "issue": "e.g., Spelling error: 'Innoive' should be 'Innovative'",
-    "type": "spelling|grammar|capitalization|other"
-  }
-]`;
-
 const grammarSystemPrompt = `You are an expert editor and proofreader. Your task is to meticulously review the provided text for any and all errors, including spelling, grammar, punctuation, capitalization, style, and clarity. Return your findings in a structured JSON format.
 
 The JSON output must be an object with a single key "textualErrors", which is an array of objects.
@@ -139,8 +122,8 @@ export async function POST(req: NextRequest) {
         text: `${slide.title}\n${slide.bullets.map((b: any) => b.text).join('\n')}`
     }));
 
-    // Vision analysis is disabled. The image paths are in processedData.image_paths
-    const analysis = await analyzePresentation(slideData, [], originalFileName);
+    // Only do text analysis with OpenAI
+    const analysis = await analyzePresentation(slideData, originalFileName);
 
     return NextResponse.json({ success: true, data: analysis });
 
@@ -154,18 +137,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function analyzePresentation(slideData: SlideText[], pngPaths: string[], fileName: string): Promise<ReviewData> {
+async function analyzePresentation(slideData: SlideText[], fileName: string): Promise<ReviewData> {
   const startTime = Date.now();
   
   const model = createOpenAIModel();
 
-  const analysisPromises = slideData.map(slide => 
-    runTextualAnalysis(slide, model).then(textualErrors => ({
+  const analysisPromises = slideData.map(async (slide) => {
+    const textualErrors = await runTextualAnalysis(slide, model);
+    return {
       slide,
       textualErrors,
-      visionErrors: [] // Vision analysis is disabled.
-    }))
-  );
+      visionErrors: [] // Vision analysis is handled separately by /api/vision
+    };
+  });
 
   const analysisResults = await Promise.all(analysisPromises);
 
@@ -178,7 +162,7 @@ async function analyzePresentation(slideData: SlideText[], pngPaths: string[], f
     }));
 
   const totalTextualErrors = slideReviews.reduce((sum, r) => sum + r.textualErrors.length, 0);
-  const totalVisionErrors = 0; // Vision analysis is disabled.
+  const totalVisionErrors = 0; // Vision analysis is handled separately
   const totalErrors = totalTextualErrors;
 
   return {
@@ -230,36 +214,6 @@ async function runTextualAnalysis(slide: SlideText, model: ChatOpenAI): Promise<
     })).filter((e: any) => e.text && e.error && e.suggestion);
   } catch (e) {
     console.warn(`AI textual analysis failed for slide ${slide.slide}:`, e);
-    return [];
-  }
-}
-
-async function runVisionCheck(imagePath: string, slideNumber: number, model: ChatOpenAI): Promise<VisionError[]> {
-  try {
-    const imageBuffer = fs.readFileSync(imagePath);
-    const base64Image = imageBuffer.toString('base64');
-
-    const response = await model.invoke([
-        new HumanMessage({
-            content: [
-                { type: "text", text: buildVisionPrompt(slideNumber) },
-                { type: "image_url", image_url: { url: `data:image/png;base64,${base64Image}` } }
-            ]
-        })
-    ], { response_format: { type: "json_object" } });
-
-    const parsed = lenientJsonParse(response.content.toString());
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.map((err: any) => ({
-      id: `${slideNumber}-vis-${Math.random().toString(36).substring(2, 8)}`,
-      slideNumber: slideNumber,
-      text: err.text || "N/A",
-      issue: err.issue,
-      type: 'vision'
-    })).filter((e: any) => e.issue) as VisionError[];
-  } catch (e) {
-    console.warn(`AI vision check failed for slide ${slideNumber}:`, e);
     return [];
   }
 }

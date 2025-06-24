@@ -1,10 +1,10 @@
 # Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
-# Install LibreOffice
+# Install LibreOffice and poppler-utils
 # We suppress prompts from apt-get and clean up the cache to keep the image small
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libreoffice && \
+    apt-get install -y --no-install-recommends libreoffice poppler-utils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

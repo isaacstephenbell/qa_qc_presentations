@@ -14,6 +14,8 @@ interface FileUploadProps {
 export default function FileUpload({ onReviewComplete, onProcessingStart, isProcessing }: FileUploadProps) {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [textQA, setTextQA] = useState(true)
+  const [visionQA, setVisionQA] = useState(true)
 
   const onDrop = (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -38,42 +40,161 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
 
   const handleUpload = async () => {
     if (!file) return
-
+    if (!textQA && !visionQA) {
+      setError('Please select at least one QA check to run.')
+      return
+    }
     onProcessingStart()
     setError(null)
-
     try {
       const newBlob = await upload(file.name, file, {
         access: 'public',
         handleUploadUrl: '/api/review/upload-blob',
       })
-
-      // Now, call the review API with the blob URL
-      const reviewResponse = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileUrl: newBlob.url }),
-      })
-
-      if (!reviewResponse.ok) {
-        let errorMessage = `Server error: ${reviewResponse.status}`;
-        try {
-          // Try to parse JSON, but prepare for it to fail
-          const errorData = await reviewResponse.json();
-          errorMessage = errorData.details || errorData.error || 'An unknown error from the server.';
-        } catch (e) {
-          // If JSON parsing fails, use the response text as a fallback
-          errorMessage = await reviewResponse.text();
+      let reviewData = {}
+      if (textQA && visionQA) {
+        // Call both APIs and combine results
+        const [textRes, visionRes] = await Promise.all([
+          fetch('/api/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileUrl: newBlob.url }),
+          }),
+          fetch('/api/vision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileUrl: newBlob.url }),
+          })
+        ])
+        if (!textRes.ok || !visionRes.ok) {
+          let errorMessage = 'Server error: ';
+          if (!textRes.ok) {
+            let errorText = await textRes.text();
+            try { const errorData = JSON.parse(errorText); errorMessage += errorData.details || errorData.error; }
+            catch { errorMessage += errorText; }
+          }
+          if (!visionRes.ok) {
+            let errorText = await visionRes.text();
+            try { const errorData = JSON.parse(errorText); errorMessage += errorData.details || errorData.error; }
+            catch { errorMessage += errorText; }
+          }
+          throw new Error(errorMessage)
         }
-        throw new Error(errorMessage);
+        const textData = await textRes.json()
+        const visionData = await visionRes.json()
+        
+        // Combine text and vision results
+        const textReviewData = textData && typeof textData === 'object' && 'data' in textData ? textData.data : {};
+        const visionReviewData = visionData && typeof visionData === 'object' && 'data' in visionData ? visionData.data : {};
+        
+        // Merge vision results into the text review data structure
+        if (visionReviewData.visionResults) {
+          const visionSlideReviews = visionReviewData.visionResults.map((slide: any) => ({
+            slideNumber: slide.slide,
+            textualErrors: [],
+            visionErrors: (slide.findings || []).map((finding: any, idx: number) => ({
+              id: `${slide.slide}-vis-${idx}`,
+              slideNumber: slide.slide,
+              text: finding.text || "",
+              issue: finding.issue || "",
+              type: 'vision'
+            }))
+          }));
+          
+          // Merge with existing text reviews
+          const existingSlideReviews = textReviewData.slideReviews || [];
+          const mergedSlideReviews = [...existingSlideReviews];
+          
+          visionSlideReviews.forEach((visionSlide: any) => {
+            const existingSlide = mergedSlideReviews.find(s => s.slideNumber === visionSlide.slideNumber);
+            if (existingSlide) {
+              existingSlide.visionErrors = visionSlide.visionErrors;
+            } else {
+              mergedSlideReviews.push(visionSlide);
+            }
+          });
+          
+          reviewData = {
+            ...textReviewData,
+            slideReviews: mergedSlideReviews,
+            summary: {
+              ...textReviewData.summary,
+              totalVisionErrors: mergedSlideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0),
+              totalErrors: (textReviewData.summary?.totalErrors || 0) + mergedSlideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0)
+            }
+          };
+        } else {
+          reviewData = textReviewData;
+        }
+      } else if (textQA) {
+        const reviewResponse = await fetch('/api/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileUrl: newBlob.url }),
+        })
+        if (!reviewResponse.ok) {
+          let errorMessage = `Server error: ${reviewResponse.status}`;
+          let errorText = await reviewResponse.text();
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.details || errorData.error || 'An unknown error from the server.';
+          } catch (e) {
+            errorMessage = errorText;
+          }
+          throw new Error(errorMessage);
+        }
+        const reviewJson = await reviewResponse.json()
+        reviewData = reviewJson && typeof reviewJson === 'object' && 'data' in reviewJson ? reviewJson.data : reviewJson
+      } else if (visionQA) {
+        const visionResponse = await fetch('/api/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileUrl: newBlob.url }),
+        })
+        if (!visionResponse.ok) {
+          let errorMessage = `Server error: ${visionResponse.status}`;
+          let errorText = await visionResponse.text();
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.details || errorData.error || 'An unknown error from the server.';
+          } catch (e) {
+            errorMessage = errorText;
+          }
+          throw new Error(errorMessage);
+        }
+        const visionJson = await visionResponse.json();
+        // Normalize vision-only response to ReviewData structure
+        if (visionJson && visionJson.data && visionJson.data.visionResults) {
+          const slideReviews = (visionJson.data.visionResults || []).map((slide: any) => ({
+            slideNumber: slide.slide,
+            textualErrors: [],
+            visionErrors: (slide.findings || []).map((finding: any, idx: number) => ({
+              id: `${slide.slide}-vis-${idx}`,
+              slideNumber: slide.slide,
+              text: finding.text || "",
+              issue: finding.issue || "",
+              type: 'vision'
+            }))
+          }));
+          reviewData = {
+            fileName: visionJson.data.fileName,
+            totalSlides: slideReviews.length,
+            slideReviews,
+            summary: {
+              totalErrors: slideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0),
+              totalTextualErrors: 0,
+              totalVisionErrors: slideReviews.reduce((sum: number, s: any) => sum + s.visionErrors.length, 0),
+              overallScore: 100, // or calculate as needed
+              processingTime: 0 // or set as needed
+            }
+          };
+        } else {
+          reviewData = { vision: visionJson && typeof visionJson === 'object' && 'data' in visionJson ? visionJson.data : visionJson };
+        }
       }
-
-      const reviewData = await reviewResponse.json()
-      onReviewComplete(reviewData.data)
-
+      onReviewComplete(reviewData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred.')
-      // Reset processing state on error
       const anyData: any = null;
       onReviewComplete(anyData);
     }
@@ -81,6 +202,27 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
 
   return (
     <div className="flex flex-col items-center justify-center w-full">
+      {/* QA Checkboxes */}
+      <div className="flex flex-row space-x-4 mb-4">
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={textQA}
+            onChange={e => setTextQA(e.target.checked)}
+            disabled={isProcessing}
+          />
+          <span>Text QA</span>
+        </label>
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={visionQA}
+            onChange={e => setVisionQA(e.target.checked)}
+            disabled={isProcessing}
+          />
+          <span>Vision QA</span>
+        </label>
+      </div>
       {!file && (
         <div
           {...getRootProps()}

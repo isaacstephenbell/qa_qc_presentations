@@ -73,8 +73,8 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
             <p className="text-xs text-muted-foreground">Writing Suggestions</p>
           </div>
           <div className="rounded-xl border bg-card text-card-foreground p-4">
-            <div className="text-2xl font-bold text-purple-600">Coming Soon</div>
-            <p className="text-xs text-muted-foreground">Visual Design</p>
+            <div className="text-2xl font-bold">{allVisionIssues.length}</div>
+            <p className="text-xs text-muted-foreground">Visual Design Issues</p>
           </div>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
               </TabsTrigger>
               <TabsTrigger value="visual" className="flex items-center gap-2">
                 <Palette className="h-4 w-4" />
-                Visual Design (Coming Soon)
+                Visual Design ({allVisionIssues.length})
               </TabsTrigger>
             </TabsList>
             
@@ -139,18 +139,22 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
 
             <TabsContent value="visual" className="mt-4">
               <h3 className="text-xl font-semibold mb-4">Visual Design Analysis</h3>
-              <p className="text-sm text-muted-foreground mb-4">AI-powered analysis of layout, readability, and visual hierarchy.</p>
-              <div className="text-center py-16">
-                <div className="w-24 h-24 mx-auto mb-6 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Palette className="h-12 w-12 text-purple-600" />
+              <p className="text-sm text-muted-foreground mb-4">AI-powered analysis of layout, readability, and visual hierarchy using Gemini Vision.</p>
+              {allVisionIssues.length > 0 ? (
+                allVisionIssues
+                  .sort((a, b) => a.slideNumber - b.slideNumber)
+                  .map((error) => (
+                    <div key={error.id} className="mb-4">
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Slide {error.slideNumber}</p>
+                      <VisionErrorCard error={error} />
+                    </div>
+                  ))
+              ) : (
+                <div className="text-center py-8 text-purple-600">
+                  <Palette className="h-12 w-12 mx-auto mb-2" />
+                  <p className="font-medium">No visual design issues found!</p>
                 </div>
-                <h4 className="text-2xl font-semibold text-purple-800 mb-2">Coming Soon</h4>
-                <p className="text-purple-600 mb-4">Visual design analysis is currently in development.</p>
-                <p className="text-sm text-gray-500 max-w-md mx-auto">
-                  This feature will analyze your slides for layout issues, font sizing, color contrast, 
-                  and overall visual hierarchy to help create more professional presentations.
-                </p>
-              </div>
+              )}
             </TabsContent>
           </Tabs>
         ) : (

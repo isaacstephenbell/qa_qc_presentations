@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.54.0",
+    "@google/generative-ai": "^0.24.1",
     "@langchain/anthropic": "^0.3.23",
     "@langchain/core": "^0.3.60",
     "@radix-ui/react-slot": "^1.2.3",
