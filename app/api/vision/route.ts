@@ -47,12 +47,15 @@ async function callOpenAIVision(base64Png: string, prompt: string, apiKey: strin
     body: JSON.stringify(body)
   });
   const result = await response.json();
-  // Extract the text response from OpenAI
+  // Log the full OpenAI response for debugging
+  console.log('[OpenAI] Raw response:', JSON.stringify(result, null, 2));
   const text = result.choices?.[0]?.message?.content || '';
+  console.log('[OpenAI] Raw text:', text);
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch (e) {
+    console.warn('⚠️ Failed to parse OpenAI response as JSON. Raw text:', text);
     parsed = [];
   }
   return parsed;
@@ -142,6 +145,7 @@ export async function POST(req: NextRequest) {
     // Run OpenAI Vision on each base64 image
     const visionResults = await Promise.all(images.map(async (img) => {
       console.log(`📨 Calling OpenAI for slide ${img.slide}`);
+      console.log(`[Vision] Slide ${img.slide} base64 length:`, img.base64.length);
       try {
         const findings = await callOpenAIVision(img.base64, visionPrompt(img.slide), openaiApiKey);
         console.log(`✅ OpenAI call succeeded for slide ${img.slide}`);
