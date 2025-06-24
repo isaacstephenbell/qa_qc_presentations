@@ -4,6 +4,7 @@ import uvicorn
 import tempfile
 import os
 import shutil
+import base64
 
 # Import the logic from your scripts
 from parse_pptx import parse_pptx
@@ -72,10 +73,16 @@ async def vision_presentation(file: UploadFile = File(...)):
                 raise HTTPException(status_code=500, detail=conversion_result["error"])
             image_paths = conversion_result.get("image_paths", [])
 
-            # Optionally, you could return base64-encoded images or serve them via a static file server
+            # Read each PNG as base64 and return in the response
+            images = []
+            for idx, img_path in enumerate(sorted(image_paths)):
+                with open(img_path, "rb") as img_file:
+                    b64 = base64.b64encode(img_file.read()).decode("utf-8")
+                    images.append({"slide": idx + 1, "base64": b64})
+
             return JSONResponse(content={
                 "filename": file.filename,
-                "image_paths": image_paths
+                "images": images
             })
 
         except Exception as e:
