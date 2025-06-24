@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
       throw new Error(`Python processor service failed: ${processResponse.status} ${errorBody}`);
     } else {
       processedData = await processResponse.json();
+      console.log('🟠 Raw Python processor response:', processedData);
       console.log('✅ Python processor response:', processedData);
     }
     
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
     console.log('🖼️ Image paths received:', imagePaths);
     
     if (imagePaths.length === 0) {
-      console.warn('⚠️ No image paths returned from Python processor');
+      console.warn('⚠️ No image paths returned from Python processor. Skipping Gemini calls.');
       return NextResponse.json({ 
         success: true, 
         data: { 
@@ -140,6 +141,8 @@ export async function POST(req: NextRequest) {
       });
     }
     
+    // Add log before Gemini loop
+    console.log('🟢 About to call Gemini for each slide:', imagePaths.length, 'slides');
     // Run Gemini Vision on each PNG
     console.log('🔍 Starting Gemini Vision analysis on', imagePaths.length, 'slides...');
     const visionResults = await Promise.all(imagePaths.map(async (imgPath: string, idx: number) => {
