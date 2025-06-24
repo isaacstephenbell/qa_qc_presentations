@@ -67,14 +67,16 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
           })
         ])
         if (!textRes.ok || !visionRes.ok) {
-          let errorMessage = 'Server error: '
+          let errorMessage = 'Server error: ';
           if (!textRes.ok) {
-            try { errorMessage += (await textRes.json()).details || (await textRes.json()).error }
-            catch { errorMessage += await textRes.text() }
+            let errorText = await textRes.text();
+            try { const errorData = JSON.parse(errorText); errorMessage += errorData.details || errorData.error; }
+            catch { errorMessage += errorText; }
           }
           if (!visionRes.ok) {
-            try { errorMessage += (await visionRes.json()).details || (await visionRes.json()).error }
-            catch { errorMessage += await visionRes.text() }
+            let errorText = await visionRes.text();
+            try { const errorData = JSON.parse(errorText); errorMessage += errorData.details || errorData.error; }
+            catch { errorMessage += errorText; }
           }
           throw new Error(errorMessage)
         }
@@ -92,11 +94,12 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
         })
         if (!reviewResponse.ok) {
           let errorMessage = `Server error: ${reviewResponse.status}`;
+          let errorText = await reviewResponse.text();
           try {
-            const errorData = await reviewResponse.json();
+            const errorData = JSON.parse(errorText);
             errorMessage = errorData.details || errorData.error || 'An unknown error from the server.';
           } catch (e) {
-            errorMessage = await reviewResponse.text();
+            errorMessage = errorText;
           }
           throw new Error(errorMessage);
         }
@@ -110,11 +113,12 @@ export default function FileUpload({ onReviewComplete, onProcessingStart, isProc
         })
         if (!visionResponse.ok) {
           let errorMessage = `Server error: ${visionResponse.status}`;
+          let errorText = await visionResponse.text();
           try {
-            const errorData = await visionResponse.json();
+            const errorData = JSON.parse(errorText);
             errorMessage = errorData.details || errorData.error || 'An unknown error from the server.';
           } catch (e) {
-            errorMessage = await visionResponse.text();
+            errorMessage = errorText;
           }
           throw new Error(errorMessage);
         }
