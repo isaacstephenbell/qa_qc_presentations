@@ -61,11 +61,18 @@ async function callOpenAIVision(base64Png: string, prompt: string, apiKey: strin
   console.log('[OpenAI] Raw response:', JSON.stringify(result, null, 2));
   const text = result.choices?.[0]?.message?.content || '';
   console.log('[OpenAI] Raw text:', text);
+  let cleanedText = text.trim();
+  // Remove code block markers if present
+  if (cleanedText.startsWith('```json')) {
+    cleanedText = cleanedText.replace(/^```json/, '').replace(/```$/, '').trim();
+  } else if (cleanedText.startsWith('```')) {
+    cleanedText = cleanedText.replace(/^```/, '').replace(/```$/, '').trim();
+  }
   let parsed;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(cleanedText);
   } catch (e) {
-    console.warn('⚠️ Failed to parse OpenAI response as JSON. Raw text:', text);
+    console.warn('⚠️ Still failed to parse OpenAI response as JSON. Cleaned text:', cleanedText);
     parsed = [];
   }
   return parsed;
