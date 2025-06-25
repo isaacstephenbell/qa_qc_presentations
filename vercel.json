@@ -1,9 +1,6 @@
 {
   "regions": ["iad1"],
   "functions": {
-    "app/api/**": {
-      "runtime": "@vercel/node"
-    },
     "app/api/review/route.ts": {
       "maxDuration": 300
     }
