@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
+// Force Node.js runtime instead of Edge for full network access
+export const runtime = "nodejs"
+
 interface FeedbackData {
   slideNumber: number
   slideContent: string // slide text for Text QA or slide image URL for Vision QA
@@ -55,11 +58,14 @@ export async function POST(req: NextRequest) {
     console.log('🔍 Feedback API called')
     console.log('🔍 Environment check:', {
       supabaseUrl: !!process.env.SUPABASE_URL,
-      supabaseUrlValue: process.env.SUPABASE_URL?.substring(0, 30) + '...', // Show first 30 chars
+      supabaseUrlValue: process.env.SUPABASE_URL, // Show full URL for debugging
       supabaseAnonKey: !!process.env.SUPABASE_ANON_KEY,
       supabaseAnonKeyLength: process.env.SUPABASE_ANON_KEY?.length,
       isConfigured: isSupabaseConfigured()
     })
+    
+    console.log("🌐 Supabase URL:", process.env.SUPABASE_URL)
+    console.log("🔑 Supabase Key (length):", process.env.SUPABASE_ANON_KEY?.length)
     
     const body = await req.json()
     console.log('📥 Request body received:', Object.keys(body))
