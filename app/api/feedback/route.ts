@@ -52,7 +52,15 @@ interface FeedbackData {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('🔍 Feedback API called')
+    console.log('🔍 Environment check:', {
+      supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      isConfigured: isSupabaseConfigured()
+    })
+    
     const body = await req.json()
+    console.log('📥 Request body received:', Object.keys(body))
     
     // Validate required fields
     const { 
@@ -163,8 +171,13 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('❌ Feedback API error:', error)
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      name: error instanceof Error ? error.name : 'Unknown error type'
+    })
     return NextResponse.json(
-      { success: false, error: 'Failed to process feedback' },
+      { success: false, error: 'Failed to process feedback', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
