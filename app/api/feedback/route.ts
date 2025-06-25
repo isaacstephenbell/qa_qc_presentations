@@ -54,10 +54,10 @@ export async function POST(req: NextRequest) {
   try {
     console.log('🔍 Feedback API called')
     console.log('🔍 Environment check:', {
-      supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      supabaseUrlValue: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...', // Show first 30 chars
-      supabaseAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      supabaseAnonKeyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length,
+      supabaseUrl: !!process.env.SUPABASE_URL,
+      supabaseUrlValue: process.env.SUPABASE_URL?.substring(0, 30) + '...', // Show first 30 chars
+      supabaseAnonKey: !!process.env.SUPABASE_ANON_KEY,
+      supabaseAnonKeyLength: process.env.SUPABASE_ANON_KEY?.length,
       isConfigured: isSupabaseConfigured()
     })
     
