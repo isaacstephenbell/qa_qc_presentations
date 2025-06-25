@@ -131,9 +131,13 @@ export async function POST(req: NextRequest) {
     try {
       // Debug: Check Supabase session role
       console.log('🔍 Checking Supabase session...')
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_current_role')
+      if (rpcError) {
+        console.error('❌ Could not get role from RPC:', rpcError)
+      }
       const { data: sessionData } = await supabase.auth.getSession()
       console.log('🔍 Session data:', {
-        hasSession: !!sessionData.session,
+        roleFromRpc: rpcData,
         user: sessionData.session?.user?.id || 'anonymous'
       })
 
@@ -170,6 +174,8 @@ export async function POST(req: NextRequest) {
           hint: error.hint,
           code: error.code
         })
+        const { data: rpcDataAfterError, error: rpcErrorAfterError } = await supabase.rpc('get_current_role')
+        console.log('🔍 Role during error:', rpcDataAfterError)
         // Fallback to console logging instead of throwing error
         console.warn('⚠️ Falling back to console logging due to Supabase error')
         console.log('📋 Feedback data (not saved to DB):', JSON.stringify(feedbackEntry, null, 2))
@@ -194,6 +200,8 @@ export async function POST(req: NextRequest) {
       })
     } catch (dbError) {
       console.error('❌ Failed to save feedback to database:', dbError)
+      const { data: rpcDataAfterError, error: rpcErrorAfterError } = await supabase.rpc('get_current_role')
+      console.log('🔍 Role during catch block:', rpcDataAfterError)
       // Fallback: log to console for debugging instead of throwing error
       console.warn('⚠️ Falling back to console logging due to database connection error')
       console.log('📋 Feedback data (not saved to DB):', JSON.stringify(feedbackEntry, null, 2))
