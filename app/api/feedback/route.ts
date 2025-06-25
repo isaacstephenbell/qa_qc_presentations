@@ -11,6 +11,8 @@ interface FeedbackData {
   fileName: string
   sessionId?: string
   timestamp: string
+  suggestionId?: string // For rating individual suggestions
+  feedbackType?: 'positive' | 'negative' | 'missed' // Type of feedback
 }
 
 // TODO: Supabase Integration
@@ -86,7 +88,9 @@ export async function POST(req: NextRequest) {
       qaType,
       fileName,
       sessionId: body.sessionId || `session_${Date.now()}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      suggestionId: body.suggestionId,
+      feedbackType: body.feedbackType || 'missed'
     }
 
     console.log('📝 Feedback received:', {

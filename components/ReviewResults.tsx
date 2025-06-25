@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileDown, BookCheck, MessageSquare, Palette } from 'lucide-react'
 import DiffView from './DiffView'
 import FeedbackForm from './FeedbackForm'
+import SuggestionFeedback from './SuggestionFeedback'
 
 export default function ReviewResults({ data, onReset }: { data: ReviewData; onReset: () => void; }) {
   if (!data || !data.slideReviews) {
@@ -116,7 +117,7 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
                       <div key={slideNumber} className="mb-8">
                         <h4 className="text-lg font-medium text-muted-foreground mb-4">Slide {slideNumber}</h4>
                         {errors.map((error) => (
-                          <GrammarSuggestionCard key={error.id} error={error} />
+                          <GrammarSuggestionCard key={error.id} error={error} fileName={data.fileName} />
                         ))}
                         <FeedbackForm
                           slideNumber={parseInt(slideNumber)}
@@ -154,7 +155,7 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
                       <div key={slideNumber} className="mb-8">
                         <h4 className="text-lg font-medium text-muted-foreground mb-4">Slide {slideNumber}</h4>
                         {errors.map((error) => (
-                          <WritingSuggestionCard key={error.id} error={error} />
+                          <WritingSuggestionCard key={error.id} error={error} fileName={data.fileName} />
                         ))}
                         <FeedbackForm
                           slideNumber={parseInt(slideNumber)}
@@ -192,7 +193,7 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
                       <div key={slideNumber} className="mb-8">
                         <h4 className="text-lg font-medium text-muted-foreground mb-4">Slide {slideNumber}</h4>
                         {errors.map((error) => (
-                          <VisionErrorCard key={error.id} error={error} />
+                          <VisionErrorCard key={error.id} error={error} fileName={data.fileName} />
                         ))}
                         <FeedbackForm
                           slideNumber={parseInt(slideNumber)}
@@ -227,7 +228,7 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
   );
 }
 
-function GrammarSuggestionCard({ error }: { error: TextualError }) {
+function GrammarSuggestionCard({ error, fileName }: { error: TextualError, fileName: string }) {
   return (
     <Card className="mb-4 border-red-200 bg-red-50/30">
       <CardHeader>
@@ -241,12 +242,20 @@ function GrammarSuggestionCard({ error }: { error: TextualError }) {
       </CardHeader>
       <CardContent>
         <DiffView original={error.text} corrected={error.suggestion} />
+        <SuggestionFeedback
+          suggestionId={error.id}
+          suggestionText={`${error.error}: ${error.suggestion}`}
+          slideNumber={error.slideNumber}
+          qaType="text"
+          fileName={fileName}
+          sessionId={`review_${Date.now()}`}
+        />
       </CardContent>
     </Card>
   );
 }
 
-function WritingSuggestionCard({ error }: { error: TextualError }) {
+function WritingSuggestionCard({ error, fileName }: { error: TextualError, fileName: string }) {
   return (
     <Card className="mb-4 border-blue-200 bg-blue-50/30">
       <CardHeader>
@@ -260,15 +269,31 @@ function WritingSuggestionCard({ error }: { error: TextualError }) {
       </CardHeader>
       <CardContent>
         <DiffView original={error.text} corrected={error.suggestion} />
+        <SuggestionFeedback
+          suggestionId={error.id}
+          suggestionText={`${error.error}: ${error.suggestion}`}
+          slideNumber={error.slideNumber}
+          qaType="text"
+          fileName={fileName}
+          sessionId={`review_${Date.now()}`}
+        />
       </CardContent>
     </Card>
   );
 }
 
-const VisionErrorCard = ({ error }: { error: VisionError }) => (
+const VisionErrorCard = ({ error, fileName }: { error: VisionError, fileName: string }) => (
   <div className="border-l-4 border-purple-500 p-4 rounded-r-lg bg-purple-50">
     <h4 className="font-semibold text-purple-900">🎨 Visual Design Suggestion</h4>
     <p className="italic text-purple-800">{error.issue}</p>
     {error.text !== "N/A" && <p className="text-sm text-gray-600 mt-2">Related text: "{error.text}"</p>}
+    <SuggestionFeedback
+      suggestionId={error.id}
+      suggestionText={error.issue}
+      slideNumber={error.slideNumber}
+      qaType="vision"
+      fileName={fileName}
+      sessionId={`review_${Date.now()}`}
+    />
   </div>
 ); 
