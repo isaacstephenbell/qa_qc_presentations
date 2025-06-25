@@ -129,6 +129,23 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      // Debug: Check Supabase session role
+      console.log('🔍 Checking Supabase session...')
+      const { data: sessionData } = await supabase.auth.getSession()
+      console.log('🔍 Session data:', {
+        hasSession: !!sessionData.session,
+        user: sessionData.session?.user?.id || 'anonymous'
+      })
+
+      console.log('🔍 About to insert:', {
+        table: 'feedback',
+        payload: {
+          slide_number: feedbackEntry.slideNumber,
+          qa_type: feedbackEntry.qaType,
+          feedback_type: feedbackEntry.feedbackType
+        }
+      })
+
       const { data, error } = await supabase
         .from('feedback')
         .insert([{
@@ -144,8 +161,15 @@ export async function POST(req: NextRequest) {
         }])
         .select()
 
+      console.log('🔍 Insert result:', { data, error })
+
       if (error) {
-        console.error('❌ Supabase error:', error)
+        console.error('❌ Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
         // Fallback to console logging instead of throwing error
         console.warn('⚠️ Falling back to console logging due to Supabase error')
         console.log('📋 Feedback data (not saved to DB):', JSON.stringify(feedbackEntry, null, 2))
@@ -153,7 +177,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           message: 'Feedback received (logged to console - Supabase error)',
-          timestamp: feedbackEntry.timestamp
+          timestamp: feedbackEntry.timestamp,
+          debug: {
+            error: error.message,
+            code: error.code
+          }
         })
       }
 
