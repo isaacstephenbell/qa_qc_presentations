@@ -55,7 +55,9 @@ export async function POST(req: NextRequest) {
     console.log('🔍 Feedback API called')
     console.log('🔍 Environment check:', {
       supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseUrlValue: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...', // Show first 30 chars
       supabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      supabaseKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length,
       isConfigured: isSupabaseConfigured()
     })
     
