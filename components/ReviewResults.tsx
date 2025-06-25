@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileDown, BookCheck, MessageSquare, Palette } from 'lucide-react'
 import DiffView from './DiffView'
+import FeedbackForm from './FeedbackForm'
 
 export default function ReviewResults({ data, onReset }: { data: ReviewData; onReset: () => void; }) {
   if (!data || !data.slideReviews) {
@@ -101,14 +102,32 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
               <h3 className="text-xl font-semibold mb-4">Grammar & Punctuation Errors</h3>
               <p className="text-sm text-muted-foreground mb-4">These are errors that should be fixed for proper grammar and spelling.</p>
               {grammarErrors.length > 0 ? (
-                grammarErrors
-                  .sort((a, b) => a.slideNumber - b.slideNumber)
-                  .map((error) => (
-                    <div key={error.id} className="mb-4">
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Slide {error.slideNumber}</p>
-                      <GrammarSuggestionCard error={error} />
-                    </div>
-                  ))
+                (() => {
+                  // Group grammar errors by slide
+                  const errorsBySlide = grammarErrors.reduce((acc, error) => {
+                    if (!acc[error.slideNumber]) acc[error.slideNumber] = [];
+                    acc[error.slideNumber].push(error);
+                    return acc;
+                  }, {} as Record<number, TextualError[]>);
+
+                  return Object.entries(errorsBySlide)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([slideNumber, errors]) => (
+                      <div key={slideNumber} className="mb-8">
+                        <h4 className="text-lg font-medium text-muted-foreground mb-4">Slide {slideNumber}</h4>
+                        {errors.map((error) => (
+                          <GrammarSuggestionCard key={error.id} error={error} />
+                        ))}
+                        <FeedbackForm
+                          slideNumber={parseInt(slideNumber)}
+                          slideContent={errors[0]?.text || ''}
+                          qaType="text"
+                          fileName={data.fileName}
+                          sessionId={`review_${Date.now()}`}
+                        />
+                      </div>
+                    ));
+                })()
               ) : (
                 <div className="text-center py-8 text-green-600">
                   <BookCheck className="h-12 w-12 mx-auto mb-2" />
@@ -121,14 +140,32 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
               <h3 className="text-xl font-semibold mb-4">Writing Suggestions</h3>
               <p className="text-sm text-muted-foreground mb-4">These are suggestions to improve clarity, style, and professionalism.</p>
               {writingSuggestions.length > 0 ? (
-                writingSuggestions
-                  .sort((a, b) => a.slideNumber - b.slideNumber)
-                  .map((error) => (
-                    <div key={error.id} className="mb-4">
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Slide {error.slideNumber}</p>
-                      <WritingSuggestionCard error={error} />
-                    </div>
-                  ))
+                (() => {
+                  // Group writing suggestions by slide
+                  const suggestionsBySlide = writingSuggestions.reduce((acc, error) => {
+                    if (!acc[error.slideNumber]) acc[error.slideNumber] = [];
+                    acc[error.slideNumber].push(error);
+                    return acc;
+                  }, {} as Record<number, TextualError[]>);
+
+                  return Object.entries(suggestionsBySlide)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([slideNumber, errors]) => (
+                      <div key={slideNumber} className="mb-8">
+                        <h4 className="text-lg font-medium text-muted-foreground mb-4">Slide {slideNumber}</h4>
+                        {errors.map((error) => (
+                          <WritingSuggestionCard key={error.id} error={error} />
+                        ))}
+                        <FeedbackForm
+                          slideNumber={parseInt(slideNumber)}
+                          slideContent={errors[0]?.text || ''}
+                          qaType="text"
+                          fileName={data.fileName}
+                          sessionId={`review_${Date.now()}`}
+                        />
+                      </div>
+                    ));
+                })()
               ) : (
                 <div className="text-center py-8 text-blue-600">
                   <MessageSquare className="h-12 w-12 mx-auto mb-2" />
@@ -141,14 +178,32 @@ export default function ReviewResults({ data, onReset }: { data: ReviewData; onR
               <h3 className="text-xl font-semibold mb-4">Visual Design Analysis</h3>
               <p className="text-sm text-muted-foreground mb-4">AI-powered analysis of layout, readability, and visual hierarchy using Gemini Vision.</p>
               {allVisionIssues.length > 0 ? (
-                allVisionIssues
-                  .sort((a, b) => a.slideNumber - b.slideNumber)
-                  .map((error) => (
-                    <div key={error.id} className="mb-4">
-                      <p className="text-sm font-medium text-muted-foreground mb-2">Slide {error.slideNumber}</p>
-                      <VisionErrorCard error={error} />
-                    </div>
-                  ))
+                (() => {
+                  // Group vision issues by slide
+                  const issuesBySlide = allVisionIssues.reduce((acc, error) => {
+                    if (!acc[error.slideNumber]) acc[error.slideNumber] = [];
+                    acc[error.slideNumber].push(error);
+                    return acc;
+                  }, {} as Record<number, VisionError[]>);
+
+                  return Object.entries(issuesBySlide)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([slideNumber, errors]) => (
+                      <div key={slideNumber} className="mb-8">
+                        <h4 className="text-lg font-medium text-muted-foreground mb-4">Slide {slideNumber}</h4>
+                        {errors.map((error) => (
+                          <VisionErrorCard key={error.id} error={error} />
+                        ))}
+                        <FeedbackForm
+                          slideNumber={parseInt(slideNumber)}
+                          slideContent={`Slide ${slideNumber} visual content`}
+                          qaType="vision"
+                          fileName={data.fileName}
+                          sessionId={`review_${Date.now()}`}
+                        />
+                      </div>
+                    ));
+                })()
               ) : (
                 <div className="text-center py-8 text-purple-600">
                   <Palette className="h-12 w-12 mx-auto mb-2" />
