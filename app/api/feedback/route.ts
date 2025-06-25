@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
-import * as path from 'path'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 interface FeedbackData {
   slideNumber: number
@@ -101,16 +100,45 @@ export async function POST(req: NextRequest) {
       timestamp: feedbackEntry.timestamp
     })
 
-    // TEMPORARY: File-based logging (will be replaced with Supabase)
-    try {
-      const feedbackDir = path.join(process.cwd(), 'feedback-logs')
-      const feedbackFile = path.join(feedbackDir, `feedback-${qaType}-${Date.now()}.json`)
-      
-      await writeFile(feedbackFile, JSON.stringify(feedbackEntry, null, 2))
-      console.log('✅ Feedback saved to:', feedbackFile)
-    } catch (fileError) {
-      console.warn('⚠️ Could not save feedback to file, logging to console instead:', fileError)
+    // Save to Supabase (if configured) or fallback to console logging
+    if (!isSupabaseConfigured() || !supabase) {
+      console.warn('⚠️ Supabase not configured, logging feedback to console instead')
       console.log('📋 Feedback data:', JSON.stringify(feedbackEntry, null, 2))
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Feedback received (logged to console - Supabase not configured)',
+        timestamp: feedbackEntry.timestamp
+      })
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('feedback')
+        .insert([{
+          slide_number: feedbackEntry.slideNumber,
+          slide_content: feedbackEntry.slideContent,
+          feedback_text: feedbackEntry.feedbackText,
+          feedback_category: feedbackEntry.feedbackCategory,
+          qa_type: feedbackEntry.qaType,
+          file_name: feedbackEntry.fileName,
+          session_id: feedbackEntry.sessionId,
+          suggestion_id: feedbackEntry.suggestionId,
+          feedback_type: feedbackEntry.feedbackType
+        }])
+        .select()
+
+      if (error) {
+        console.error('❌ Supabase error:', error)
+        throw new Error(`Database error: ${error.message}`)
+      }
+
+      console.log('✅ Feedback saved to Supabase:', data?.[0]?.id)
+    } catch (dbError) {
+      console.error('❌ Failed to save feedback to database:', dbError)
+      // Fallback: log to console for debugging
+      console.log('📋 Feedback data (not saved):', JSON.stringify(feedbackEntry, null, 2))
+      throw dbError
     }
 
     return NextResponse.json({
