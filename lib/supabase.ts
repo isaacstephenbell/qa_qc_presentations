@@ -1,15 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Create a Supabase client with service role key for server-side operations
-// During build time, environment variables might not be available, so we create a mock client
-// Fallback to anon key for testing if service role key fails
-const activeKey = supabaseServiceKey || supabaseAnonKey
-export const supabase = (supabaseUrl && activeKey) 
-  ? createClient(supabaseUrl, activeKey, {
+// Create a Supabase client with anon key for server-side operations
+// This is simpler and should have better connectivity than service role key
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
@@ -19,7 +16,7 @@ export const supabase = (supabaseUrl && activeKey)
 
 // Helper function to check if Supabase is configured
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && (supabaseServiceKey || supabaseAnonKey))
+  return !!(supabaseUrl && supabaseAnonKey)
 }
 
 // Database types for feedback table
